@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatDate } from '@/lib/utils'
-import { Instagram, Twitter, Linkedin, Facebook, Clock, CheckCircle, XCircle, Send } from 'lucide-react'
+import { Globe, Clock, CheckCircle, XCircle, Send } from 'lucide-react'
 
 interface SocialPost {
   id: string
@@ -13,10 +13,10 @@ interface SocialPost {
 }
 
 const platformIcon: Record<string, React.ReactNode> = {
-  instagram: <Instagram size={14} />,
-  twitter: <Twitter size={14} />,
-  linkedin: <Linkedin size={14} />,
-  facebook: <Facebook size={14} />,
+  instagram: <Globe size={14} />,
+  twitter: <Globe size={14} />,
+  linkedin: <Globe size={14} />,
+  facebook: <Globe size={14} />,
 }
 
 const statusBadge: Record<string, string> = {
