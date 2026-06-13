@@ -8,6 +8,7 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { AgentPage } from '@/pages/AgentPage'
 import { ApprovalQueuePage } from '@/pages/ApprovalQueuePage'
 import { IntegrationsPage } from '@/pages/IntegrationsPage'
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -28,6 +29,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route
           element={
             <AuthGuard>

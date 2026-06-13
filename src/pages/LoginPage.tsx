@@ -10,6 +10,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null)
+  const [showReset, setShowReset] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -18,13 +19,37 @@ export function LoginPage() {
 
     if (mode === 'magic') {
       const { error } = await supabase.auth.signInWithOtp({ email })
-      setMessage(error
-        ? { text: error.message, ok: false }
-        : { text: 'Check your email for a magic link.', ok: true })
+      setMessage(
+        error
+          ? { text: error.message, ok: false }
+          : { text: 'Check your email for a magic link.', ok: true }
+      )
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setMessage({ text: error.message, ok: false })
+      if (error) {
+        setMessage({ text: error.message, ok: false })
+        if (error.message.toLowerCase().includes('invalid')) setShowReset(true)
+      }
     }
+    setLoading(false)
+  }
+
+  async function handleResetPassword() {
+    if (!email) {
+      setMessage({ text: 'Enter your email above first.', ok: false })
+      return
+    }
+    setLoading(true)
+    setMessage(null)
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    setMessage(
+      error
+        ? { text: error.message, ok: false }
+        : { text: 'Password reset link sent — check your email.', ok: true }
+    )
+    setShowReset(false)
     setLoading(false)
   }
 
@@ -44,7 +69,7 @@ export function LoginPage() {
             {(['password', 'magic'] as Mode[]).map((m) => (
               <button
                 key={m}
-                onClick={() => setMode(m)}
+                onClick={() => { setMode(m); setMessage(null); setShowReset(false) }}
                 className={`flex-1 py-1.5 text-sm rounded-lg border transition-colors ${
                   mode === m
                     ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
@@ -88,6 +113,27 @@ export function LoginPage() {
               {loading ? 'Loading…' : mode === 'magic' ? 'Send magic link' : 'Sign in'}
             </button>
           </form>
+
+          {mode === 'password' && (
+            <div className="mt-4 text-center">
+              {showReset ? (
+                <button
+                  onClick={handleResetPassword}
+                  disabled={loading}
+                  className="text-xs text-amber-400 hover:text-amber-300 transition-colors disabled:opacity-50"
+                >
+                  Send password reset email →
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowReset(true)}
+                  className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                >
+                  Forgot password?
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
