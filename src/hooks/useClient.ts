@@ -8,6 +8,8 @@ export interface PrymalClient {
   brand_tone: string | null
   knowledge_base: string | null
   delivery_cadence: string | null
+  gbp_account_id: string | null
+  gbp_location_id: string | null
   created_at: string
 }
 
