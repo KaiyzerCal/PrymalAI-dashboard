@@ -78,7 +78,7 @@ export function ApprovalQueuePage() {
               onClick={() => setTab(t)}
               className={`px-4 py-1.5 rounded-lg text-sm border transition-colors ${
                 tab === t
-                  ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
+                  ? 'bg-electric-100 border border-electric-200 text-electric-400'
                   : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'
               }`}
             >

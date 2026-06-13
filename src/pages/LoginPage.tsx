@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Zap } from 'lucide-react'
 
 type Mode = 'password' | 'magic'
 
@@ -54,29 +53,93 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <Zap className="text-amber-500" size={24} />
-          <span className="text-xl font-semibold text-white">PrymalAI</span>
+    <div
+      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+      style={{ background: '#03070f' }}
+    >
+      {/* Grid background */}
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+        }}
+      />
+
+      {/* Radial glow from top */}
+      <div
+        className="absolute inset-x-0 top-0 h-96 pointer-events-none"
+        style={{
+          background: 'radial-gradient(ellipse 70% 60% at 50% -10%, rgba(0,212,255,0.1) 0%, transparent 70%)',
+        }}
+      />
+
+      {/* Corner accents */}
+      <div className="absolute top-8 left-8 w-8 h-8 pointer-events-none" style={{ borderTop: '1px solid rgba(0,212,255,0.3)', borderLeft: '1px solid rgba(0,212,255,0.3)' }} />
+      <div className="absolute top-8 right-8 w-8 h-8 pointer-events-none" style={{ borderTop: '1px solid rgba(0,212,255,0.3)', borderRight: '1px solid rgba(0,212,255,0.3)' }} />
+      <div className="absolute bottom-8 left-8 w-8 h-8 pointer-events-none" style={{ borderBottom: '1px solid rgba(0,212,255,0.3)', borderLeft: '1px solid rgba(0,212,255,0.3)' }} />
+      <div className="absolute bottom-8 right-8 w-8 h-8 pointer-events-none" style={{ borderBottom: '1px solid rgba(0,212,255,0.3)', borderRight: '1px solid rgba(0,212,255,0.3)' }} />
+
+      <div className="w-full max-w-sm relative z-10">
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-10">
+          <div
+            className="w-14 h-14 rounded-xl flex items-center justify-center mb-5"
+            style={{
+              background: 'rgba(0,212,255,0.08)',
+              border: '1px solid rgba(0,212,255,0.25)',
+              boxShadow: '0 0 32px rgba(0,212,255,0.15)',
+            }}
+          >
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <path d="M14 2L25 8V20L14 26L3 20V8L14 2Z" stroke="rgba(0,212,255,0.9)" strokeWidth="1.2" fill="rgba(0,212,255,0.06)" />
+              <path d="M14 2L14 26M3 8L25 20M25 8L3 20" stroke="rgba(0,212,255,0.3)" strokeWidth="0.8" />
+              <circle cx="14" cy="14" r="3" fill="rgba(0,212,255,0.6)" />
+            </svg>
+          </div>
+          <div className="text-center">
+            <div className="text-xl font-bold tracking-widest">
+              <span className="text-white">PRYMAL</span>
+              <span style={{ color: '#00d4ff', textShadow: '0 0 16px rgba(0,212,255,0.6)' }}>AI</span>
+            </div>
+            <p className="text-xs tracking-widest mt-1" style={{ color: 'rgba(0,212,255,0.5)' }}>
+              AUTONOMOUS DIGITAL INFRASTRUCTURE
+            </p>
+          </div>
         </div>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-          <h1 className="text-lg font-semibold text-white mb-1">Sign in</h1>
-          <p className="text-sm text-zinc-400 mb-6">Access your client dashboard</p>
+        {/* Card */}
+        <div
+          className="rounded-xl p-6"
+          style={{
+            background: 'rgba(8,13,22,0.95)',
+            border: '1px solid rgba(0,212,255,0.15)',
+            boxShadow: '0 0 40px rgba(0,212,255,0.06), inset 0 1px 0 rgba(0,212,255,0.05)',
+          }}
+        >
+          <h1 className="text-sm font-semibold text-white tracking-widest mb-1">ACCESS PORTAL</h1>
+          <p className="text-xs mb-6" style={{ color: 'rgba(0,212,255,0.45)' }}>
+            Authenticate to enter your dashboard
+          </p>
 
-          <div className="flex gap-2 mb-5">
+          {/* Mode toggle */}
+          <div
+            className="flex gap-0 mb-5 rounded-lg overflow-hidden"
+            style={{ border: '1px solid rgba(0,212,255,0.12)' }}
+          >
             {(['password', 'magic'] as Mode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setMessage(null); setShowReset(false) }}
-                className={`flex-1 py-1.5 text-sm rounded-lg border transition-colors ${
+                className="flex-1 py-2 text-xs font-medium tracking-widest transition-all"
+                style={
                   mode === m
-                    ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
-                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'
-                }`}
+                    ? { background: 'rgba(0,212,255,0.1)', color: '#00d4ff', textShadow: '0 0 8px rgba(0,212,255,0.4)' }
+                    : { background: 'transparent', color: 'rgba(255,255,255,0.3)' }
+                }
               >
-                {m === 'password' ? 'Password' : 'Magic link'}
+                {m === 'password' ? 'PASSWORD' : 'MAGIC LINK'}
               </button>
             ))}
           </div>
@@ -85,10 +148,16 @@ export function LoginPage() {
             <input
               type="email"
               required
-              placeholder="Email"
+              placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+              className="rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none transition-all"
+              style={{
+                background: 'rgba(0,212,255,0.04)',
+                border: '1px solid rgba(0,212,255,0.12)',
+              }}
+              onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.35)'; e.currentTarget.style.boxShadow = '0 0 16px rgba(0,212,255,0.06)' }}
+              onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.12)'; e.currentTarget.style.boxShadow = 'none' }}
             />
             {mode === 'password' && (
               <input
@@ -97,20 +166,37 @@ export function LoginPage() {
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                className="rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none transition-all"
+                style={{
+                  background: 'rgba(0,212,255,0.04)',
+                  border: '1px solid rgba(0,212,255,0.12)',
+                }}
+                onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.35)'; e.currentTarget.style.boxShadow = '0 0 16px rgba(0,212,255,0.06)' }}
+                onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.12)'; e.currentTarget.style.boxShadow = 'none' }}
               />
             )}
+
             {message && (
-              <p className={`text-sm ${message.ok ? 'text-green-400' : 'text-red-400'}`}>
+              <p className={`text-xs ${message.ok ? 'text-green-400' : 'text-red-400'}`}>
                 {message.text}
               </p>
             )}
+
             <button
               type="submit"
               disabled={loading}
-              className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-medium rounded-lg py-2.5 text-sm transition-colors"
+              className="py-2.5 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+              style={{
+                background: loading
+                  ? 'rgba(0,212,255,0.08)'
+                  : 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+                border: '1px solid rgba(0,212,255,0.35)',
+                color: '#00d4ff',
+                boxShadow: loading ? 'none' : '0 0 20px rgba(0,212,255,0.1)',
+                textShadow: '0 0 8px rgba(0,212,255,0.4)',
+              }}
             >
-              {loading ? 'Loading…' : mode === 'magic' ? 'Send magic link' : 'Sign in'}
+              {loading ? 'AUTHENTICATING…' : mode === 'magic' ? 'SEND MAGIC LINK' : 'SIGN IN'}
             </button>
           </form>
 
@@ -120,14 +206,15 @@ export function LoginPage() {
                 <button
                   onClick={handleResetPassword}
                   disabled={loading}
-                  className="text-xs text-amber-400 hover:text-amber-300 transition-colors disabled:opacity-50"
+                  className="text-xs tracking-wide transition-colors disabled:opacity-50"
+                  style={{ color: '#00d4ff' }}
                 >
                   Send password reset email →
                 </button>
               ) : (
                 <button
                   onClick={() => setShowReset(true)}
-                  className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                  className="text-xs tracking-wide text-zinc-600 hover:text-zinc-400 transition-colors"
                 >
                   Forgot password?
                 </button>
@@ -135,6 +222,10 @@ export function LoginPage() {
             </div>
           )}
         </div>
+
+        <p className="text-center text-xs mt-6 tracking-widest" style={{ color: 'rgba(0,212,255,0.2)' }}>
+          OUR AGENTS · OUR SYSTEMS · YOUR ADVANTAGE
+        </p>
       </div>
     </div>
   )

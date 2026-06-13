@@ -86,7 +86,7 @@ function ApprovalCard({
   }
 
   return (
-    <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
+    <div className="rounded-xl p-4" style={{ background: 'rgba(6,10,18,0.9)', border: '1px solid rgba(0,212,255,0.1)' }}>
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-medium text-zinc-300 capitalize">
@@ -185,7 +185,7 @@ function GoogleContent() {
 
   return (
     <div className="mt-8">
-      <h2 className="text-base font-semibold text-white mb-4">Google Reviews</h2>
+      <h2 className="text-xs font-bold tracking-widest mb-4" style={{ color: 'rgba(0,212,255,0.7)' }}>GOOGLE REVIEWS</h2>
 
       <div className="grid grid-cols-3 gap-3 mb-5">
         {[
@@ -193,7 +193,7 @@ function GoogleContent() {
           { label: 'Average Rating', value: `${avgRating} ★` },
           { label: 'Awaiting Response', value: String(pendingCount) },
         ].map(stat => (
-          <div key={stat.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <div key={stat.label} className="rounded-xl p-4" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.1)' }}>
             <p className="text-2xl font-semibold text-white">{stat.value}</p>
             <p className="text-xs text-zinc-500 mt-1">{stat.label}</p>
           </div>
@@ -223,7 +223,7 @@ function GoogleContent() {
       ) : (
         <div className="flex flex-col gap-3">
           {filtered.map(review => (
-            <div key={review.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <div key={review.id} className="rounded-xl p-4" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.1)' }}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
@@ -295,7 +295,7 @@ function BrandContent() {
   return (
     <div className="mt-8">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-white">Social Posts</h2>
+        <h2 className="text-xs font-bold tracking-widest" style={{ color: 'rgba(0,212,255,0.7)' }}>SOCIAL POSTS</h2>
         <div className="flex gap-1.5">
           {['all', 'drafted', 'scheduled', 'published'].map(s => (
             <button
@@ -319,7 +319,7 @@ function BrandContent() {
           { label: 'Scheduled', value: posts.filter(p => p.status === 'scheduled').length },
           { label: 'Published', value: posts.filter(p => p.status === 'published').length },
         ].map(stat => (
-          <div key={stat.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <div key={stat.label} className="rounded-xl p-4" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.1)' }}>
             <p className="text-2xl font-semibold text-white">{stat.value}</p>
             <p className="text-xs text-zinc-500 mt-1">{stat.label}</p>
           </div>
@@ -391,7 +391,7 @@ function IntelContent() {
 
   return (
     <div className="mt-8">
-      <h2 className="text-base font-semibold text-white mb-4">Weekly Briefings</h2>
+      <h2 className="text-xs font-bold tracking-widest mb-4" style={{ color: 'rgba(0,212,255,0.7)' }}>WEEKLY BRIEFINGS</h2>
       {loading ? (
         <p className="text-zinc-500 text-sm">Loading…</p>
       ) : briefings.length === 0 ? (
@@ -403,7 +403,7 @@ function IntelContent() {
             return (
               <div
                 key={b.id}
-                className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden"
+                className="rounded-xl overflow-hidden" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.1)' }}
               >
                 <button
                   className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-zinc-800/40 transition-colors"
@@ -477,7 +477,7 @@ function AgentHistory({ agentId }: { agentId: string }) {
 
   return (
     <div className="mt-8">
-      <h2 className="text-base font-semibold text-white mb-4">Recent Activity</h2>
+      <h2 className="text-xs font-bold tracking-widest mb-4" style={{ color: 'rgba(0,212,255,0.7)' }}>RECENT ACTIVITY</h2>
       {loading ? (
         <p className="text-zinc-500 text-sm">Loading…</p>
       ) : items.length === 0 ? (
@@ -487,7 +487,7 @@ function AgentHistory({ agentId }: { agentId: string }) {
           {items.map(item => (
             <div
               key={item.id}
-              className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 flex items-center justify-between gap-3"
+              className="rounded-xl px-4 py-3 flex items-center justify-between gap-3" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.08)' }}
             >
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-zinc-300 capitalize">
@@ -555,28 +555,63 @@ export function AgentPage() {
   const Icon = agent.icon
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6 max-w-4xl relative">
+      {/* Ambient glow */}
+      <div
+        className="absolute inset-x-0 top-0 h-56 pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse 70% 50% at 50% -10%, rgba(0,212,255,0.06) 0%, transparent 70%)' }}
+      />
+
       {/* Agent hero */}
-      <div className={`rounded-xl border ${agent.color.border} ${agent.color.bg} p-6 mb-8`}>
+      <div
+        className="relative rounded-xl p-6 mb-8 overflow-hidden"
+        style={{
+          background: 'rgba(8,13,22,0.9)',
+          border: '1px solid rgba(0,212,255,0.15)',
+          boxShadow: '0 0 40px rgba(0,212,255,0.05)',
+        }}
+      >
+        {/* Top accent line */}
+        <div
+          className="absolute top-0 inset-x-0 h-px"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(0,212,255,0.5), transparent)' }}
+        />
+
         <div className="flex items-start gap-5">
-          <div className={`p-3 rounded-xl bg-zinc-900/60 border ${agent.color.border} shrink-0`}>
+          <div
+            className="p-3 rounded-xl shrink-0"
+            style={{
+              background: 'rgba(0,212,255,0.07)',
+              border: '1px solid rgba(0,212,255,0.2)',
+              boxShadow: '0 0 20px rgba(0,212,255,0.1)',
+            }}
+          >
             <Icon size={28} className={agent.color.text} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-xl font-semibold text-white">{agent.name}</h1>
+              <h1 className="text-xl font-bold tracking-wide text-white">{agent.name.toUpperCase()}</h1>
               <div className="flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${agent.color.dot}`} />
-                <span className="text-xs text-zinc-400">Active</span>
+                <span className="w-2 h-2 rounded-full dot-pulse" style={{ background: '#00d4ff' }} />
+                <span className="text-xs tracking-widest" style={{ color: 'rgba(0,212,255,0.5)' }}>ONLINE</span>
               </div>
             </div>
-            <p className={`text-sm font-medium mb-2 ${agent.color.text}`}>{agent.tagline}</p>
-            <p className="text-sm text-zinc-400 leading-relaxed mb-4">{agent.description}</p>
+            <p className={`text-xs font-semibold tracking-widest mb-3 ${agent.color.text}`}>
+              {agent.tagline.toUpperCase()}
+            </p>
+            <p className="text-sm leading-relaxed mb-4" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              {agent.description}
+            </p>
             <div className="flex flex-wrap gap-2">
               {agent.capabilities.map(cap => (
                 <span
                   key={cap}
-                  className={`text-xs px-2.5 py-1 rounded-lg border ${agent.color.bg} ${agent.color.border} ${agent.color.text}`}
+                  className="text-xs px-2.5 py-1 rounded tracking-wide"
+                  style={{
+                    background: 'rgba(0,212,255,0.06)',
+                    border: '1px solid rgba(0,212,255,0.15)',
+                    color: 'rgba(0,212,255,0.8)',
+                  }}
                 >
                   {cap}
                 </span>
@@ -589,19 +624,33 @@ export function AgentPage() {
       {/* Pending approvals */}
       {!loading && (
         <div className="mb-2">
-          <div className="flex items-center gap-2 mb-4">
-            <h2 className="text-base font-semibold text-white">Pending Approvals</h2>
+          <div className="flex items-center gap-3 mb-4">
+            <div
+              className="h-px flex-shrink-0 w-4"
+              style={{ background: 'rgba(0,212,255,0.3)' }}
+            />
+            <h2 className="text-xs font-bold tracking-widest" style={{ color: 'rgba(0,212,255,0.7)' }}>
+              PENDING APPROVALS
+            </h2>
             {pendingItems.length > 0 && (
-              <span className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs px-2 py-0.5 rounded-full font-medium">
+              <span
+                className="text-xs px-2 py-0.5 rounded font-bold tracking-wide"
+                style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.25)', color: '#00d4ff' }}
+              >
                 {pendingItems.length}
               </span>
             )}
           </div>
 
           {pendingItems.length === 0 ? (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex items-center gap-3">
+            <div
+              className="rounded-xl p-5 flex items-center gap-3"
+              style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.08)' }}
+            >
               <CheckCircle size={15} className="text-green-400 shrink-0" />
-              <p className="text-sm text-zinc-400">All caught up — no pending approvals.</p>
+              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                All caught up — no pending approvals.
+              </p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">

@@ -2,9 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  background-color: #09090b;
-  color: #f4f4f5;
-  -webkit-font-smoothing: antialiased;
+@layer base {
+  body {
+    margin: 0;
+    background-color: #03070f;
+    background-image:
+      linear-gradient(rgba(0, 212, 255, 0.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 212, 255, 0.028) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-attachment: fixed;
+    color: #f4f4f5;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer utilities {
+  .glow-electric {
+    box-shadow: 0 0 24px rgba(0, 212, 255, 0.12), 0 0 48px rgba(0, 212, 255, 0.04);
+  }
+
+  .glow-electric-lg {
+    box-shadow: 0 0 40px rgba(0, 212, 255, 0.18), 0 0 80px rgba(0, 212, 255, 0.06);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 20px rgba(0, 212, 255, 0.55);
+  }
+
+  .text-glow-sm {
+    text-shadow: 0 0 10px rgba(0, 212, 255, 0.4);
+  }
+}
+
+@keyframes pulse-electric {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(0, 212, 255, 0.7);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(0, 212, 255, 1), 0 0 32px rgba(0, 212, 255, 0.35);
+    opacity: 0.8;
+  }
+}
+
+@keyframes flicker {
+  0%, 95%, 100% { opacity: 1; }
+  96% { opacity: 0.7; }
+  98% { opacity: 0.9; }
+}
+
+.dot-pulse {
+  animation: pulse-electric 2.4s ease-in-out infinite;
+  border-radius: 9999px;
 }
