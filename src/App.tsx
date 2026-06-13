@@ -4,9 +4,9 @@ import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 import { Layout } from '@/components/Layout'
 import { LoginPage } from '@/pages/LoginPage'
+import { DashboardPage } from '@/pages/DashboardPage'
+import { AgentPage } from '@/pages/AgentPage'
 import { ApprovalQueuePage } from '@/pages/ApprovalQueuePage'
-import { BriefingsPage } from '@/pages/BriefingsPage'
-import { SocialCalendarPage } from '@/pages/SocialCalendarPage'
 import { IntegrationsPage } from '@/pages/IntegrationsPage'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -35,11 +35,13 @@ export default function App() {
             </AuthGuard>
           }
         >
-          <Route index element={<Navigate to="/approvals" replace />} />
+          <Route index element={<DashboardPage />} />
+          <Route path="agents/:id" element={<AgentPage />} />
           <Route path="approvals" element={<ApprovalQueuePage />} />
-          <Route path="briefings" element={<BriefingsPage />} />
-          <Route path="social" element={<SocialCalendarPage />} />
           <Route path="settings" element={<IntegrationsPage />} />
+          {/* Legacy redirects */}
+          <Route path="briefings" element={<Navigate to="/agents/intel" replace />} />
+          <Route path="social" element={<Navigate to="/agents/brand" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

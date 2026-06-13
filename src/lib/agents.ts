@@ -1,0 +1,69 @@
+import type { LucideIcon } from 'lucide-react'
+import { Globe, Sparkles, Mail, MessageCircle, TrendingUp } from 'lucide-react'
+
+export interface AgentDef {
+  id: string
+  name: string
+  tagline: string
+  description: string
+  capabilities: string[]
+  color: {
+    text: string
+    bg: string
+    border: string
+    dot: string
+  }
+  icon: LucideIcon
+}
+
+export const AGENTS: AgentDef[] = [
+  {
+    id: 'google',
+    name: 'Google Agent',
+    tagline: 'Local presence & reputation management',
+    description: 'Monitors your Google Business Profile around the clock. Drafts review responses in your brand voice, publishes local posts, and tracks your local search visibility so you never miss a reputation moment.',
+    capabilities: ['Review response drafting', 'Google Business Posts', 'Rating monitoring', 'Local SEO tracking'],
+    color: { text: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', dot: 'bg-blue-400' },
+    icon: Globe,
+  },
+  {
+    id: 'brand',
+    name: 'Brand Agent',
+    tagline: 'Social content & publishing',
+    description: 'Drafts on-brand social content for Instagram, LinkedIn, Twitter, and Facebook. Keeps your content calendar full, your voice consistent, and your audience engaged — without you lifting a finger.',
+    capabilities: ['Content drafting', 'Multi-platform scheduling', 'Brand voice consistency', 'Hashtag strategy'],
+    color: { text: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', dot: 'bg-purple-400' },
+    icon: Sparkles,
+  },
+  {
+    id: 'outreach',
+    name: 'Outreach Agent',
+    tagline: 'Prospecting & lead nurturing',
+    description: 'Runs targeted email and SMS campaigns to qualified prospects. Personalizes every touchpoint, follows up automatically, and books calls on your behalf — turning cold lists into warm pipelines.',
+    capabilities: ['Email sequences', 'SMS campaigns', 'Lead personalization', 'Auto follow-up'],
+    color: { text: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20', dot: 'bg-green-400' },
+    icon: Mail,
+  },
+  {
+    id: 'service',
+    name: 'Service Agent',
+    tagline: 'Customer support & response',
+    description: 'Handles inbound customer inquiries across all channels. Delivers fast, accurate, on-brand responses 24/7 — and knows when to escalate to a human so nothing falls through the cracks.',
+    capabilities: ['Inbound reply drafting', '24/7 coverage', 'Tone matching', 'Escalation routing'],
+    color: { text: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', dot: 'bg-cyan-400' },
+    icon: MessageCircle,
+  },
+  {
+    id: 'intel',
+    name: 'Intel Agent',
+    tagline: 'Business intelligence & insights',
+    description: 'Analyzes performance data across all your channels every week. Surfaces competitor moves, flags opportunities before they pass, and delivers a clear actionable briefing every Monday morning.',
+    capabilities: ['Weekly briefings', 'Competitor monitoring', 'Performance analysis', 'Opportunity flagging'],
+    color: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', dot: 'bg-amber-400' },
+    icon: TrendingUp,
+  },
+]
+
+export function getAgent(id: string): AgentDef | undefined {
+  return AGENTS.find(a => a.id === id)
+}
