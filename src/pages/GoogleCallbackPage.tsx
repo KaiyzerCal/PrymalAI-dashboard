@@ -47,7 +47,8 @@ export function GoogleCallbackPage() {
 
         if (!res.ok || !data.success) {
           setStatus('error')
-          setMessage(data.error ?? `Connection failed (${res.status})`)
+          const detail = data.details ? ` — ${JSON.stringify(data.details)}` : ''
+          setMessage((data.error ?? `Connection failed (${res.status})`) + detail)
           return
         }
 
