@@ -10,48 +10,53 @@ export function GoogleCallbackPage() {
 
   useEffect(() => {
     async function handleCallback() {
-      const params = new URLSearchParams(window.location.search)
-      const code = params.get('code')
-      const error = params.get('error')
+      try {
+        const params = new URLSearchParams(window.location.search)
+        const code = params.get('code')
+        const error = params.get('error')
 
-      if (error || !code) {
-        setStatus('error')
-        setMessage(error === 'access_denied' ? 'Google access was denied.' : 'OAuth failed — no code returned.')
-        return
-      }
-
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        setStatus('error')
-        setMessage('Not authenticated. Please sign in and try again.')
-        return
-      }
-
-      const redirectUri = `${window.location.origin}/auth/google/callback`
-
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/prymal-google-oauth`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ code, redirect_uri: redirectUri }),
+        if (error || !code) {
+          setStatus('error')
+          setMessage(error === 'access_denied' ? 'Google access was denied.' : 'OAuth failed — no code returned.')
+          return
         }
-      )
 
-      const data = await res.json()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          setStatus('error')
+          setMessage('Not signed in. Please log into the dashboard first, then try connecting Google again.')
+          return
+        }
 
-      if (!res.ok || !data.success) {
+        const redirectUri = `${window.location.origin}/auth/google/callback`
+
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/prymal-google-oauth`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ code, redirect_uri: redirectUri }),
+          }
+        )
+
+        const data = await res.json()
+
+        if (!res.ok || !data.success) {
+          setStatus('error')
+          setMessage(data.error ?? `Connection failed (${res.status})`)
+          return
+        }
+
+        setStatus('success')
+        setMessage(`Connected: ${data.location_title ?? data.location}`)
+        setTimeout(() => navigate('/agents/google'), 2500)
+      } catch (err) {
         setStatus('error')
-        setMessage(data.error ?? 'Connection failed.')
-        return
+        setMessage(`Unexpected error: ${String(err)}`)
       }
-
-      setStatus('success')
-      setMessage(`Connected: ${data.location_title ?? data.location}`)
-      setTimeout(() => navigate('/agents/google'), 2500)
     }
 
     handleCallback()
@@ -92,18 +97,18 @@ export function GoogleCallbackPage() {
         {status === 'error' && (
           <>
             <XCircle size={32} className="mx-auto mb-4 text-red-400" />
-            <p className="text-white font-semibold tracking-wide">CONNECTION FAILED</p>
-            <p className="text-xs mt-2 text-red-400">{message}</p>
+            <p className="text-white font-semibold tracking-wide mb-2">CONNECTION FAILED</p>
+            <p className="text-xs text-red-400 mb-5">{message}</p>
             <button
-              onClick={() => navigate('/agents/google')}
-              className="mt-5 px-4 py-2 text-xs font-semibold tracking-widest rounded-lg transition-all"
+              onClick={() => navigate('/settings')}
+              className="px-4 py-2 text-xs font-semibold tracking-widest rounded-lg transition-all"
               style={{
                 background: 'rgba(0,212,255,0.08)',
                 border: '1px solid rgba(0,212,255,0.25)',
                 color: '#00d4ff',
               }}
             >
-              BACK TO DASHBOARD
+              BACK TO SETTINGS
             </button>
           </>
         )}
