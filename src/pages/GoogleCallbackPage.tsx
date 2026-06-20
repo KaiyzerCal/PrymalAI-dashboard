@@ -30,8 +30,9 @@ export function GoogleCallbackPage() {
 
         const redirectUri = `${window.location.origin}/auth/google/callback`
 
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://josabyyaarhlgepfelid.supabase.co'
         const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/prymal-google-oauth`,
+          `${supabaseUrl}/functions/v1/prymal-google-oauth`,
           {
             method: 'POST',
             headers: {
