@@ -53,8 +53,13 @@ export function GoogleCallbackPage() {
         }
 
         setStatus('success')
-        setMessage(`Connected: ${data.location_title ?? data.location}`)
-        setTimeout(() => navigate('/agents/google'), 2500)
+        if (data.tokens_stored && !data.location) {
+          setMessage('Tokens saved. Go to Settings → Integrations to enter your GBP IDs manually.')
+          setTimeout(() => navigate('/settings'), 2500)
+        } else {
+          setMessage(`Connected: ${data.location_title ?? data.location}`)
+          setTimeout(() => navigate('/agents/google'), 2500)
+        }
       } catch (err) {
         setStatus('error')
         setMessage(`Unexpected error: ${String(err)}`)
