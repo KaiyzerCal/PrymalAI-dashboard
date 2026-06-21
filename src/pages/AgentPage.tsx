@@ -5,7 +5,7 @@ import { getAgent } from '@/lib/agents'
 import { formatRelative, formatDate } from '@/lib/utils'
 import {
   Check, X, Edit2, ChevronDown, ChevronUp,
-  Star, Flag, CheckCircle, MessageSquare, Globe,
+  Star, Flag, CheckCircle, MessageSquare, Globe, Play, Plus,
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -407,7 +407,10 @@ function BrandContent() {
   return (
     <div className="mt-8">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xs font-bold tracking-widest" style={{ color: 'rgba(0,212,255,0.7)' }}>SOCIAL POSTS</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-xs font-bold tracking-widest" style={{ color: 'rgba(0,212,255,0.7)' }}>SOCIAL POSTS</h2>
+          <RunAgentButton functionName="prymal-brand-agent" label="DRAFT POSTS" />
+        </div>
         <div className="flex gap-1.5">
           {['all', 'drafted', 'scheduled', 'published'].map(s => (
             <button
@@ -503,7 +506,10 @@ function IntelContent() {
 
   return (
     <div className="mt-8">
-      <h2 className="text-xs font-bold tracking-widest mb-4" style={{ color: 'rgba(0,212,255,0.7)' }}>WEEKLY BRIEFINGS</h2>
+      <div className="flex items-center gap-4 mb-4">
+        <h2 className="text-xs font-bold tracking-widest" style={{ color: 'rgba(0,212,255,0.7)' }}>WEEKLY BRIEFINGS</h2>
+        <RunAgentButton functionName="prymal-intel-agent" label="GENERATE BRIEFING" />
+      </div>
       {loading ? (
         <p className="text-zinc-500 text-sm">Loading…</p>
       ) : briefings.length === 0 ? (
@@ -570,57 +576,435 @@ function IntelContent() {
   )
 }
 
-// ─── Booking ──────────────────────────────────────────────────────────────────
+// ─── Run Agent Button ─────────────────────────────────────────────────────────
 
-function BookingContent() {
-  const stats = [
-    { label: 'APPOINTMENTS THIS WEEK', value: '—' },
-    { label: 'REMINDERS SENT', value: '—' },
-    { label: 'RESCHEDULES HANDLED', value: '—' },
-    { label: 'SHOW RATE', value: '—' },
-  ]
+function RunAgentButton({ functionName, label = 'RUN AGENT', body = {} }: { functionName: string; label?: string; body?: Record<string, unknown> }) {
+  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  async function run() {
+    setRunning(true)
+    setResult(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${FUNCTION_BASE}/${functionName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        const drafted = data.drafted ?? data.briefing_created ? 1 : 0
+        setResult({ ok: true, msg: data.message ?? `Done — ${drafted} item${drafted !== 1 ? 's' : ''} drafted` })
+      } else {
+        setResult({ ok: false, msg: data.error ?? 'Failed' })
+      }
+    } catch (err) {
+      setResult({ ok: false, msg: String(err) })
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        onClick={run}
+        disabled={running}
+        className="flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-50"
+        style={{
+          background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+          border: '1px solid rgba(0,212,255,0.35)',
+          color: '#00d4ff',
+        }}
+      >
+        <Play size={11} />
+        {running ? 'RUNNING…' : label}
+      </button>
+      {result && (
+        <span className={`text-xs ${result.ok ? 'text-green-400' : 'text-red-400'}`}>{result.msg}</span>
+      )}
+    </div>
+  )
+}
+
+// ─── Outreach content ─────────────────────────────────────────────────────────
+
+interface Lead {
+  id: string
+  name: string
+  email: string | null
+  company: string | null
+  status: string
+  created_at: string
+}
+
+function OutreachContent() {
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showAdd, setShowAdd] = useState(false)
+  const [addForm, setAddForm] = useState({ name: '', email: '', company: '', notes: '' })
+  const [adding, setAdding] = useState(false)
+
+  async function loadLeads() {
+    const { data } = await supabase.from('prymal_leads').select('*').order('created_at', { ascending: false }).limit(50)
+    setLeads(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { loadLeads() }, [])
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault()
+    setAdding(true)
+    const { data: client } = await supabase.from('prymal_clients').select('id').single()
+    if (client) {
+      await supabase.from('prymal_leads').insert({ client_id: client.id, ...addForm, status: 'new' })
+      setAddForm({ name: '', email: '', company: '', notes: '' })
+      setShowAdd(false)
+      loadLeads()
+    }
+    setAdding(false)
+  }
+
+  const statusColor: Record<string, string> = {
+    new: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    contacted: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    converted: 'bg-green-500/10 text-green-400 border-green-500/20',
+    lost: 'bg-zinc-700/30 text-zinc-500 border-zinc-700',
+  }
 
   return (
     <div className="mt-8">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="h-px flex-shrink-0 w-4" style={{ background: 'rgba(0,212,255,0.3)' }} />
-        <h2 className="text-xs font-bold tracking-widest" style={{ color: 'rgba(0,212,255,0.7)' }}>BOOKING OVERVIEW</h2>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        {stats.map(({ label, value }) => (
-          <div
-            key={label}
-            className="rounded-xl p-4"
-            style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.08)' }}
-          >
-            <p className="text-2xl font-bold text-white mb-1">{value}</p>
-            <p className="text-xs tracking-widest" style={{ color: 'rgba(0,212,255,0.45)' }}>{label}</p>
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        {[
+          { label: 'Total Leads', value: leads.length },
+          { label: 'New', value: leads.filter(l => l.status === 'new').length },
+          { label: 'Converted', value: leads.filter(l => l.status === 'converted').length },
+        ].map(s => (
+          <div key={s.label} className="rounded-xl p-4" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.1)' }}>
+            <p className="text-2xl font-semibold text-white">{s.value}</p>
+            <p className="text-xs text-zinc-500 mt-1">{s.label}</p>
           </div>
         ))}
       </div>
 
-      <div
-        className="rounded-xl p-6 text-center"
-        style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(244,63,94,0.15)' }}
-      >
-        <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4"
-          style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.2)' }}
+      <div className="flex items-center justify-between mb-4">
+        <RunAgentButton functionName="prymal-outreach-agent" label="DRAFT OUTREACH" />
+        <button
+          onClick={() => setShowAdd(v => !v)}
+          className="flex items-center gap-1.5 text-xs font-semibold tracking-widest px-3 py-2 rounded-lg transition-all"
+          style={{ background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(244,63,94,0.8)" strokeWidth="1.5">
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-            <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" strokeLinecap="round" />
-          </svg>
-        </div>
-        <p className="text-white font-semibold tracking-wide text-sm mb-2">BOOKING INTEGRATION COMING SOON</p>
-        <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.35)' }}>
-          Connect your calendar (Calendly, Google Calendar, or custom) and the Booking Agent will autonomously qualify enquiries, schedule appointments, send reminders, and handle reschedules on your behalf.
-        </p>
+          <Plus size={11} /> ADD LEAD
+        </button>
       </div>
+
+      {showAdd && (
+        <form onSubmit={handleAdd} className="rounded-xl p-4 mb-4 flex flex-col gap-3" style={{ background: 'rgba(8,13,22,0.9)', border: '1px solid rgba(0,212,255,0.15)' }}>
+          {[
+            { key: 'name', label: 'NAME *', placeholder: 'Jane Smith' },
+            { key: 'email', label: 'EMAIL', placeholder: 'jane@company.com' },
+            { key: 'company', label: 'COMPANY', placeholder: 'Acme Corp' },
+            { key: 'notes', label: 'NOTES', placeholder: 'Met at conference, interested in…' },
+          ].map(({ key, label, placeholder }) => (
+            <div key={key}>
+              <label className="block text-xs font-semibold tracking-widest mb-1" style={{ color: 'rgba(0,212,255,0.5)' }}>{label}</label>
+              <input
+                type="text"
+                placeholder={placeholder}
+                value={addForm[key as keyof typeof addForm]}
+                onChange={e => setAddForm(f => ({ ...f, [key]: e.target.value }))}
+                className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none"
+                style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)' }}
+              />
+            </div>
+          ))}
+          <button type="submit" disabled={adding || !addForm.name} className="py-2 text-xs font-bold tracking-widest rounded-lg disabled:opacity-40" style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff' }}>
+            {adding ? 'ADDING…' : 'ADD LEAD'}
+          </button>
+        </form>
+      )}
+
+      {loading ? <p className="text-zinc-500 text-sm">Loading…</p> : leads.length === 0 ? (
+        <p className="text-zinc-500 text-sm">No leads yet. Add your first lead above.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {leads.map(lead => (
+            <div key={lead.id} className="rounded-xl px-4 py-3 flex items-center justify-between gap-3" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.08)' }}>
+              <div>
+                <p className="text-sm font-medium text-white">{lead.name}</p>
+                <p className="text-xs text-zinc-500">{[lead.company, lead.email].filter(Boolean).join(' · ')}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`text-xs px-2 py-0.5 rounded border capitalize ${statusColor[lead.status] ?? statusColor.new}`}>{lead.status}</span>
+                <span className="text-xs text-zinc-600">{formatRelative(lead.created_at)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Service content ──────────────────────────────────────────────────────────
+
+interface Inquiry {
+  id: string
+  customer_name: string | null
+  customer_email: string | null
+  subject: string | null
+  message: string
+  channel: string
+  status: string
+  created_at: string
+}
+
+function ServiceContent() {
+  const [inquiries, setInquiries] = useState<Inquiry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showAdd, setShowAdd] = useState(false)
+  const [addForm, setAddForm] = useState({ customer_name: '', customer_email: '', subject: '', message: '', channel: 'email' })
+  const [adding, setAdding] = useState(false)
+
+  async function loadInquiries() {
+    const { data } = await supabase.from('prymal_inquiries').select('*').order('created_at', { ascending: false }).limit(50)
+    setInquiries(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { loadInquiries() }, [])
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault()
+    setAdding(true)
+    const { data: client } = await supabase.from('prymal_clients').select('id').single()
+    if (client) {
+      await supabase.from('prymal_inquiries').insert({ client_id: client.id, ...addForm, status: 'new' })
+      setAddForm({ customer_name: '', customer_email: '', subject: '', message: '', channel: 'email' })
+      setShowAdd(false)
+      loadInquiries()
+    }
+    setAdding(false)
+  }
+
+  const statusColor: Record<string, string> = {
+    new: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    drafted: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    responded: 'bg-green-500/10 text-green-400 border-green-500/20',
+    closed: 'bg-zinc-700/30 text-zinc-500 border-zinc-700',
+  }
+
+  return (
+    <div className="mt-8">
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        {[
+          { label: 'Total', value: inquiries.length },
+          { label: 'New', value: inquiries.filter(i => i.status === 'new').length },
+          { label: 'Responded', value: inquiries.filter(i => i.status === 'responded').length },
+        ].map(s => (
+          <div key={s.label} className="rounded-xl p-4" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.1)' }}>
+            <p className="text-2xl font-semibold text-white">{s.value}</p>
+            <p className="text-xs text-zinc-500 mt-1">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between mb-4">
+        <RunAgentButton functionName="prymal-service-agent" label="DRAFT REPLIES" />
+        <button
+          onClick={() => setShowAdd(v => !v)}
+          className="flex items-center gap-1.5 text-xs font-semibold tracking-widest px-3 py-2 rounded-lg transition-all"
+          style={{ background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }}
+        >
+          <Plus size={11} /> ADD INQUIRY
+        </button>
+      </div>
+
+      {showAdd && (
+        <form onSubmit={handleAdd} className="rounded-xl p-4 mb-4 flex flex-col gap-3" style={{ background: 'rgba(8,13,22,0.9)', border: '1px solid rgba(0,212,255,0.15)' }}>
+          {[
+            { key: 'customer_name', label: 'CUSTOMER NAME', placeholder: 'John Doe' },
+            { key: 'customer_email', label: 'EMAIL', placeholder: 'john@example.com' },
+            { key: 'subject', label: 'SUBJECT', placeholder: 'Question about pricing…' },
+          ].map(({ key, label, placeholder }) => (
+            <div key={key}>
+              <label className="block text-xs font-semibold tracking-widest mb-1" style={{ color: 'rgba(0,212,255,0.5)' }}>{label}</label>
+              <input type="text" placeholder={placeholder} value={addForm[key as keyof typeof addForm]}
+                onChange={e => setAddForm(f => ({ ...f, [key]: e.target.value }))}
+                className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none"
+                style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)' }} />
+            </div>
+          ))}
+          <div>
+            <label className="block text-xs font-semibold tracking-widest mb-1" style={{ color: 'rgba(0,212,255,0.5)' }}>MESSAGE *</label>
+            <textarea rows={3} placeholder="Customer's message…" value={addForm.message}
+              onChange={e => setAddForm(f => ({ ...f, message: e.target.value }))}
+              className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none resize-none"
+              style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)' }} />
+          </div>
+          <button type="submit" disabled={adding || !addForm.message} className="py-2 text-xs font-bold tracking-widest rounded-lg disabled:opacity-40" style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff' }}>
+            {adding ? 'ADDING…' : 'ADD INQUIRY'}
+          </button>
+        </form>
+      )}
+
+      {loading ? <p className="text-zinc-500 text-sm">Loading…</p> : inquiries.length === 0 ? (
+        <p className="text-zinc-500 text-sm">No inquiries yet.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {inquiries.map(inq => (
+            <div key={inq.id} className="rounded-xl px-4 py-3" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.08)' }}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white">{inq.customer_name ?? 'Anonymous'}</p>
+                  <p className="text-xs text-zinc-500 truncate">{inq.subject ?? inq.message.slice(0, 60)}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-xs px-2 py-0.5 rounded border capitalize ${statusColor[inq.status] ?? statusColor.new}`}>{inq.status}</span>
+                  <span className="text-xs text-zinc-600">{formatRelative(inq.created_at)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Booking ──────────────────────────────────────────────────────────────────
+
+interface Appointment {
+  id: string
+  customer_name: string
+  customer_email: string | null
+  customer_phone: string | null
+  service_type: string | null
+  requested_date: string | null
+  confirmed_date: string | null
+  status: string
+  created_at: string
+}
+
+function BookingContent() {
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showAdd, setShowAdd] = useState(false)
+  const [addForm, setAddForm] = useState({ customer_name: '', customer_email: '', customer_phone: '', service_type: '', notes: '', requested_date: '' })
+  const [adding, setAdding] = useState(false)
+
+  async function loadAppointments() {
+    const { data } = await supabase.from('prymal_appointments').select('*').order('created_at', { ascending: false }).limit(50)
+    setAppointments(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { loadAppointments() }, [])
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault()
+    setAdding(true)
+    const { data: client } = await supabase.from('prymal_clients').select('id').single()
+    if (client) {
+      await supabase.from('prymal_appointments').insert({
+        client_id: client.id,
+        customer_name: addForm.customer_name,
+        customer_email: addForm.customer_email || null,
+        customer_phone: addForm.customer_phone || null,
+        service_type: addForm.service_type || null,
+        notes: addForm.notes || null,
+        requested_date: addForm.requested_date ? new Date(addForm.requested_date).toISOString() : null,
+        status: 'requested',
+      })
+      setAddForm({ customer_name: '', customer_email: '', customer_phone: '', service_type: '', notes: '', requested_date: '' })
+      setShowAdd(false)
+      loadAppointments()
+    }
+    setAdding(false)
+  }
+
+  const statusColor: Record<string, string> = {
+    requested: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    confirmed: 'bg-green-500/10 text-green-400 border-green-500/20',
+    reminded: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    completed: 'bg-zinc-700/30 text-zinc-400 border-zinc-700',
+    cancelled: 'bg-red-500/10 text-red-400 border-red-500/20',
+  }
+
+  const thisWeek = appointments.filter(a => {
+    const d = new Date(a.created_at)
+    return Date.now() - d.getTime() < 7 * 24 * 60 * 60 * 1000
+  })
+
+  return (
+    <div className="mt-8">
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        {[
+          { label: 'Total', value: appointments.length },
+          { label: 'This Week', value: thisWeek.length },
+          { label: 'Confirmed', value: appointments.filter(a => a.status === 'confirmed').length },
+        ].map(s => (
+          <div key={s.label} className="rounded-xl p-4" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.1)' }}>
+            <p className="text-2xl font-semibold text-white">{s.value}</p>
+            <p className="text-xs text-zinc-500 mt-1">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between mb-4">
+        <RunAgentButton functionName="prymal-booking-agent" label="SEND CONFIRMATIONS" />
+        <button
+          onClick={() => setShowAdd(v => !v)}
+          className="flex items-center gap-1.5 text-xs font-semibold tracking-widest px-3 py-2 rounded-lg transition-all"
+          style={{ background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }}
+        >
+          <Plus size={11} /> ADD APPOINTMENT
+        </button>
+      </div>
+
+      {showAdd && (
+        <form onSubmit={handleAdd} className="rounded-xl p-4 mb-4 flex flex-col gap-3" style={{ background: 'rgba(8,13,22,0.9)', border: '1px solid rgba(0,212,255,0.15)' }}>
+          {[
+            { key: 'customer_name', label: 'NAME *', placeholder: 'Jane Smith', type: 'text' },
+            { key: 'customer_email', label: 'EMAIL', placeholder: 'jane@example.com', type: 'email' },
+            { key: 'customer_phone', label: 'PHONE', placeholder: '+1 555 000 0000', type: 'text' },
+            { key: 'service_type', label: 'SERVICE', placeholder: 'Personal Training Session', type: 'text' },
+            { key: 'requested_date', label: 'REQUESTED DATE', placeholder: '', type: 'datetime-local' },
+            { key: 'notes', label: 'NOTES', placeholder: 'Any relevant details…', type: 'text' },
+          ].map(({ key, label, placeholder, type }) => (
+            <div key={key}>
+              <label className="block text-xs font-semibold tracking-widest mb-1" style={{ color: 'rgba(0,212,255,0.5)' }}>{label}</label>
+              <input type={type} placeholder={placeholder} value={addForm[key as keyof typeof addForm]}
+                onChange={e => setAddForm(f => ({ ...f, [key]: e.target.value }))}
+                className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none"
+                style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)', colorScheme: 'dark' }} />
+            </div>
+          ))}
+          <button type="submit" disabled={adding || !addForm.customer_name} className="py-2 text-xs font-bold tracking-widest rounded-lg disabled:opacity-40" style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff' }}>
+            {adding ? 'ADDING…' : 'ADD APPOINTMENT'}
+          </button>
+        </form>
+      )}
+
+      {loading ? <p className="text-zinc-500 text-sm">Loading…</p> : appointments.length === 0 ? (
+        <p className="text-zinc-500 text-sm">No appointments yet. Add your first one above.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {appointments.map(appt => (
+            <div key={appt.id} className="rounded-xl px-4 py-3 flex items-center justify-between gap-3" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.08)' }}>
+              <div>
+                <p className="text-sm font-medium text-white">{appt.customer_name}</p>
+                <p className="text-xs text-zinc-500">{[appt.service_type, appt.confirmed_date ? formatDate(appt.confirmed_date) : appt.requested_date ? formatDate(appt.requested_date) : null].filter(Boolean).join(' · ')}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`text-xs px-2 py-0.5 rounded border capitalize ${statusColor[appt.status] ?? statusColor.requested}`}>{appt.status}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -834,7 +1218,8 @@ export function AgentPage() {
       {id === 'brand' && <BrandContent />}
       {id === 'intel' && <IntelContent />}
       {id === 'booking' && <BookingContent />}
-      {(id === 'outreach' || id === 'service') && <AgentHistory agentId={id} />}
+      {id === 'outreach' && <OutreachContent />}
+      {id === 'service' && <ServiceContent />}
     </div>
   )
 }
