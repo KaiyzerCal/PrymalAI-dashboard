@@ -1,9 +1,21 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, CheckSquare, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, Settings, LogOut, ShieldCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { AGENTS } from '@/lib/agents'
+import { useAdmin } from '@/hooks/useAdmin'
+import { useClient } from '@/hooks/useClient'
+
+const planColor: Record<string, string> = {
+  trial: 'text-amber-400',
+  starter: 'text-blue-400',
+  pro: 'text-cyan-400',
+  agency: 'text-purple-400',
+}
 
 export function Sidebar() {
+  const { isAdmin } = useAdmin()
+  const { client } = useClient()
+
   async function handleSignOut() {
     await supabase.auth.signOut()
   }
@@ -30,7 +42,6 @@ export function Sidebar() {
             boxShadow: '0 0 12px rgba(0,212,255,0.15)',
           }}
         >
-          {/* Geometric crystal icon */}
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M8 1L14 5V11L8 15L2 11V5L8 1Z" stroke="rgba(0,212,255,0.9)" strokeWidth="1" fill="rgba(0,212,255,0.08)" />
             <path d="M8 1L8 15M2 5L14 11M14 5L2 11" stroke="rgba(0,212,255,0.35)" strokeWidth="0.75" />
@@ -142,17 +153,55 @@ export function Sidebar() {
             {label}
           </NavLink>
         ))}
+
+        {/* Admin section */}
+        {isAdmin && (
+          <>
+            <p
+              className="text-xs px-3 pt-5 pb-2 tracking-widest font-semibold"
+              style={{ color: 'rgba(168,85,247,0.6)' }}
+            >
+              ADMIN
+            </p>
+            <NavLink
+              to="/admin"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded text-xs font-medium tracking-wide transition-all ${
+                  isActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-200'
+                }`
+              }
+              style={({ isActive }) => isActive ? {
+                background: 'rgba(168,85,247,0.07)',
+                borderLeft: '2px solid rgba(168,85,247,0.8)',
+                paddingLeft: '10px',
+              } : { borderLeft: '2px solid transparent' }}
+            >
+              <ShieldCheck size={14} />
+              ADMIN PANEL
+            </NavLink>
+          </>
+        )}
       </nav>
 
-      {/* Sign out */}
-      <button
-        onClick={handleSignOut}
-        className="flex items-center gap-3 px-5 py-4 text-xs text-zinc-600 hover:text-zinc-300 tracking-wide transition-colors"
-        style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}
-      >
-        <LogOut size={14} />
-        SIGN OUT
-      </button>
+      {/* Plan badge + Sign out */}
+      <div style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
+        {client && (
+          <div className="px-5 py-3 flex items-center justify-between">
+            <span className="text-xs text-zinc-600 tracking-wide">{client.business_name ?? client.owner_email}</span>
+            <span className={`text-xs font-bold tracking-widest uppercase ${planColor[client.plan] ?? 'text-zinc-500'}`}>
+              {client.plan}
+            </span>
+          </div>
+        )}
+        <button
+          onClick={handleSignOut}
+          className="w-full flex items-center gap-3 px-5 py-4 text-xs text-zinc-600 hover:text-zinc-300 tracking-wide transition-colors"
+          style={{ borderTop: client ? '1px solid rgba(0,212,255,0.04)' : undefined }}
+        >
+          <LogOut size={14} />
+          SIGN OUT
+        </button>
+      </div>
     </aside>
   )
 }

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 
 export interface PrymalClient {
   id: string
+  user_id: string | null
   owner_email: string
   business_name: string | null
   brand_tone: string | null
@@ -10,6 +11,16 @@ export interface PrymalClient {
   delivery_cadence: string | null
   gbp_account_id: string | null
   gbp_location_id: string | null
+  plan: string
+  status: string
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+  trial_ends_at: string | null
+  contact_name: string | null
+  contact_email: string | null
+  website: string | null
+  industry: string | null
+  onboarding_complete: boolean
   created_at: string
 }
 
@@ -26,8 +37,21 @@ export function useClient() {
       const { data, error } = await supabase
         .from('prymal_clients')
         .select('*')
-        .eq('owner_email', user.email)
-        .single()
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!data && !error) {
+        // fallback to email lookup for legacy records
+        const { data: d2, error: e2 } = await supabase
+          .from('prymal_clients')
+          .select('*')
+          .eq('owner_email', user.email)
+          .maybeSingle()
+        if (e2) setError(e2.message)
+        else setClient(d2)
+        setLoading(false)
+        return
+      }
 
       if (error) setError(error.message)
       else setClient(data)

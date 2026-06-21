@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useClient } from '@/hooks/useClient'
-import { CheckCircle, XCircle, Globe, ChevronDown } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { CheckCircle, XCircle, Globe, ChevronDown, CreditCard, Zap } from 'lucide-react'
+import { supabase, FUNCTION_BASE } from '@/lib/supabase'
 
-type Tab = 'brand' | 'integrations'
+type Tab = 'brand' | 'integrations' | 'billing'
 
 interface SocialAccount {
   id: string
@@ -140,7 +140,7 @@ export function IntegrationsPage() {
         className="flex gap-0 mb-6 rounded-lg overflow-hidden w-fit"
         style={{ border: '1px solid rgba(0,212,255,0.12)' }}
       >
-        {(['integrations', 'brand'] as Tab[]).map((t) => (
+        {(['integrations', 'brand', 'billing'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -151,7 +151,7 @@ export function IntegrationsPage() {
                 : { background: 'transparent', color: 'rgba(255,255,255,0.35)' }
             }
           >
-            {t === 'brand' ? 'BRAND SETTINGS' : 'INTEGRATIONS'}
+            {t === 'brand' ? 'BRAND SETTINGS' : t === 'billing' ? 'BILLING' : 'INTEGRATIONS'}
           </button>
         ))}
       </div>
@@ -379,6 +379,112 @@ export function IntegrationsPage() {
           )}
         </div>
       )}
+
+      {/* Billing tab */}
+      {tab === 'billing' && (
+        <BillingTab client={client} />
+      )}
+    </div>
+  )
+}
+
+const PLANS = [
+  { key: 'starter', label: 'Starter', price: '$299/mo', features: ['Google Agent', 'Brand Agent', '50 leads/mo'] },
+  { key: 'pro', label: 'Pro', price: '$599/mo', features: ['All Starter features', 'Outreach + Service Agents', '200 leads/mo', 'Priority support'] },
+  { key: 'agency', label: 'Agency', price: '$1,499/mo', features: ['All Pro features', 'Unlimited leads', 'Multi-location', 'White label'] },
+]
+
+function BillingTab({ client }: { client: import('@/hooks/useClient').PrymalClient | null }) {
+  const [loading, setLoading] = useState<string | null>(null)
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+
+  async function handleUpgrade(plan: string) {
+    setLoading(plan)
+    setMsg(null)
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`${FUNCTION_BASE}/prymal-stripe-checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ plan }),
+    })
+    const data = await res.json()
+    if (data.url) {
+      window.location.href = data.url
+    } else {
+      setMsg({ text: data.error ?? data.message ?? 'Billing not configured yet.', ok: false })
+    }
+    setLoading(null)
+  }
+
+  const trialDaysLeft = client?.trial_ends_at
+    ? Math.ceil((new Date(client.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null
+
+  return (
+    <div>
+      {/* Current plan */}
+      <div className="rounded-xl p-5 mb-6" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.1)' }}>
+        <div className="flex items-center gap-2 mb-1">
+          <CreditCard size={14} style={{ color: 'rgba(0,212,255,0.6)' }} />
+          <p className="text-xs font-bold tracking-widest" style={{ color: 'rgba(0,212,255,0.6)' }}>CURRENT PLAN</p>
+        </div>
+        <p className="text-2xl font-bold text-white uppercase mt-2">{client?.plan ?? 'trial'}</p>
+        {client?.plan === 'trial' && trialDaysLeft !== null && (
+          <p className="text-xs mt-1" style={{ color: trialDaysLeft <= 3 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
+            {trialDaysLeft > 0 ? `${trialDaysLeft} days remaining in trial` : 'Trial expired'}
+          </p>
+        )}
+        {client?.plan !== 'trial' && (
+          <p className="text-xs mt-1" style={{ color: 'rgba(0,212,255,0.4)' }}>
+            Status: <span className="capitalize">{client?.status}</span>
+          </p>
+        )}
+      </div>
+
+      {msg && <p className={`text-xs mb-4 ${msg.ok ? 'text-green-400' : 'text-red-400'}`}>{msg.text}</p>}
+
+      {/* Upgrade options */}
+      <p className="text-xs font-bold tracking-widest mb-3" style={{ color: 'rgba(0,212,255,0.5)' }}>UPGRADE YOUR PLAN</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {PLANS.map(plan => {
+          const isCurrent = client?.plan === plan.key
+          return (
+            <div
+              key={plan.key}
+              className="rounded-xl p-4 flex flex-col gap-3"
+              style={{
+                background: isCurrent ? 'rgba(0,212,255,0.06)' : 'rgba(8,13,22,0.8)',
+                border: isCurrent ? '1px solid rgba(0,212,255,0.3)' : '1px solid rgba(0,212,255,0.1)',
+              }}
+            >
+              <div>
+                <p className="text-sm font-bold text-white">{plan.label}</p>
+                <p className="text-lg font-bold mt-0.5" style={{ color: '#00d4ff' }}>{plan.price}</p>
+              </div>
+              <ul className="flex flex-col gap-1 flex-1">
+                {plan.features.map(f => (
+                  <li key={f} className="flex items-center gap-1.5 text-xs text-zinc-400">
+                    <Zap size={10} style={{ color: 'rgba(0,212,255,0.5)' }} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => handleUpgrade(plan.key)}
+                disabled={isCurrent || loading !== null}
+                className="py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                style={{
+                  background: isCurrent ? 'rgba(0,212,255,0.1)' : 'linear-gradient(135deg, rgba(0,212,255,0.2), rgba(0,212,255,0.08))',
+                  border: '1px solid rgba(0,212,255,0.3)',
+                  color: '#00d4ff',
+                }}
+              >
+                {isCurrent ? 'CURRENT' : loading === plan.key ? 'LOADING…' : 'UPGRADE'}
+              </button>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

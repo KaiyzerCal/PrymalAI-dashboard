@@ -1011,7 +1011,7 @@ function BookingContent() {
 
 // ─── Outreach / Service history ───────────────────────────────────────────────
 
-function AgentHistory({ agentId }: { agentId: string }) {
+export function AgentHistory({ agentId }: { agentId: string }) {
   const [items, setItems] = useState<ApprovalItem[]>([])
   const [loading, setLoading] = useState(true)
 

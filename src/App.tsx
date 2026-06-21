@@ -10,18 +10,53 @@ import { ApprovalQueuePage } from '@/pages/ApprovalQueuePage'
 import { IntegrationsPage } from '@/pages/IntegrationsPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { GoogleCallbackPage } from '@/pages/GoogleCallbackPage'
+import { OnboardingPage } from '@/pages/OnboardingPage'
+import { AdminPage } from '@/pages/AdminPage'
+import { AdminClientPage } from '@/pages/AdminClientPage'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | undefined>(undefined)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      if (data.session?.user) {
+        supabase
+          .from('prymal_clients')
+          .select('onboarding_complete')
+          .eq('user_id', data.session.user.id)
+          .maybeSingle()
+          .then(({ data: client }) => {
+            setNeedsOnboarding(!client || !client.onboarding_complete)
+          })
+      } else {
+        setNeedsOnboarding(false)
+      }
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession(s)
+      if (s?.user) {
+        supabase
+          .from('prymal_clients')
+          .select('onboarding_complete')
+          .eq('user_id', s.user.id)
+          .maybeSingle()
+          .then(({ data: client }) => {
+            setNeedsOnboarding(!client || !client.onboarding_complete)
+          })
+      } else {
+        setNeedsOnboarding(false)
+      }
+    })
     return () => subscription.unsubscribe()
   }, [])
 
-  if (session === undefined) return null
+  if (session === undefined || needsOnboarding === undefined) return null
   if (!session) return <Navigate to="/login" replace />
+  if (needsOnboarding && window.location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />
+  }
   return <>{children}</>
 }
 
@@ -32,6 +67,11 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
+        <Route path="/onboarding" element={
+          <AuthGuardSession>
+            <OnboardingPage />
+          </AuthGuardSession>
+        } />
         <Route
           element={
             <AuthGuard>
@@ -43,6 +83,8 @@ export default function App() {
           <Route path="agents/:id" element={<AgentPage />} />
           <Route path="approvals" element={<ApprovalQueuePage />} />
           <Route path="settings" element={<IntegrationsPage />} />
+          <Route path="admin" element={<AdminPage />} />
+          <Route path="admin/clients/:id" element={<AdminClientPage />} />
           {/* Legacy redirects */}
           <Route path="briefings" element={<Navigate to="/agents/intel" replace />} />
           <Route path="social" element={<Navigate to="/agents/brand" replace />} />
@@ -50,4 +92,18 @@ export default function App() {
       </Routes>
     </BrowserRouter>
   )
+}
+
+function AuthGuardSession({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<Session | null | undefined>(undefined)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    return () => subscription.unsubscribe()
+  }, [])
+
+  if (session === undefined) return null
+  if (!session) return <Navigate to="/login" replace />
+  return <>{children}</>
 }

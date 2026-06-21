@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
-type Mode = 'password' | 'magic'
+type Mode = 'password' | 'magic' | 'signup'
 
 export function LoginPage() {
   const [mode, setMode] = useState<Mode>('password')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null)
   const [showReset, setShowReset] = useState(false)
@@ -16,7 +17,24 @@ export function LoginPage() {
     setLoading(true)
     setMessage(null)
 
-    if (mode === 'magic') {
+    if (mode === 'signup') {
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
+      if (error) {
+        setMessage({ text: error.message, ok: false })
+      } else if (data.user) {
+        // create initial client record so onboarding can find/update it
+        await supabase.from('prymal_clients').upsert({
+          user_id: data.user.id,
+          owner_email: email,
+          contact_name: name,
+          plan: 'trial',
+          status: 'active',
+          trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          onboarding_complete: false,
+        }, { onConflict: 'user_id' })
+        setMessage({ text: 'Account created! Redirecting to onboarding…', ok: true })
+      }
+    } else if (mode === 'magic') {
       const { error } = await supabase.auth.signInWithOtp({ email })
       setMessage(
         error
@@ -128,7 +146,7 @@ export function LoginPage() {
             className="flex gap-0 mb-5 rounded-lg overflow-hidden"
             style={{ border: '1px solid rgba(0,212,255,0.12)' }}
           >
-            {(['password', 'magic'] as Mode[]).map((m) => (
+            {(['password', 'magic', 'signup'] as Mode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setMessage(null); setShowReset(false) }}
@@ -139,12 +157,25 @@ export function LoginPage() {
                     : { background: 'transparent', color: 'rgba(255,255,255,0.3)' }
                 }
               >
-                {m === 'password' ? 'PASSWORD' : 'MAGIC LINK'}
+                {m === 'password' ? 'SIGN IN' : m === 'magic' ? 'MAGIC LINK' : 'SIGN UP'}
               </button>
             ))}
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            {mode === 'signup' && (
+              <input
+                type="text"
+                required
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none transition-all"
+                style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)' }}
+                onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.35)' }}
+                onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.12)' }}
+              />
+            )}
             <input
               type="email"
               required
@@ -159,11 +190,11 @@ export function LoginPage() {
               onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.35)'; e.currentTarget.style.boxShadow = '0 0 16px rgba(0,212,255,0.06)' }}
               onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.12)'; e.currentTarget.style.boxShadow = 'none' }}
             />
-            {mode === 'password' && (
+            {(mode === 'password' || mode === 'signup') && (
               <input
                 type="password"
                 required
-                placeholder="Password"
+                placeholder={mode === 'signup' ? 'Create a password' : 'Password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none transition-all"
@@ -196,7 +227,7 @@ export function LoginPage() {
                 textShadow: '0 0 8px rgba(0,212,255,0.4)',
               }}
             >
-              {loading ? 'AUTHENTICATING…' : mode === 'magic' ? 'SEND MAGIC LINK' : 'SIGN IN'}
+              {loading ? (mode === 'signup' ? 'CREATING ACCOUNT…' : 'AUTHENTICATING…') : mode === 'magic' ? 'SEND MAGIC LINK' : mode === 'signup' ? 'CREATE ACCOUNT' : 'SIGN IN'}
             </button>
           </form>
 
