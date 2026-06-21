@@ -52,13 +52,19 @@ export function IntegrationsPage() {
     }
   }, [client])
 
+  const [gbpIds, setGbpIds] = useState<{ account: string | null; location: string | null }>({ account: null, location: null })
+
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from('prymal_social_accounts')
-        .select('*')
-        .order('platform')
-      setAccounts(data ?? [])
+      const [accountsRes, clientRes] = await Promise.all([
+        supabase.from('prymal_social_accounts').select('*').order('platform'),
+        supabase.from('prymal_clients').select('gbp_account_id, gbp_location_id').single(),
+      ])
+      setAccounts(accountsRes.data ?? [])
+      setGbpIds({
+        account: clientRes.data?.gbp_account_id ?? null,
+        location: clientRes.data?.gbp_location_id ?? null,
+      })
       setAcctLoading(false)
     }
     load()
@@ -178,11 +184,18 @@ export function IntegrationsPage() {
 
               {acctLoading ? (
                 <div className="w-24 h-8 rounded-lg animate-pulse" style={{ background: 'rgba(0,212,255,0.05)' }} />
-              ) : googleAccount?.connected ? (
+              ) : googleAccount?.connected && gbpIds.account && gbpIds.location ? (
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full dot-pulse" style={{ background: '#00d4ff' }} />
                   <span className="text-xs font-semibold tracking-widest" style={{ color: '#00d4ff' }}>
                     CONNECTED
+                  </span>
+                </div>
+              ) : googleAccount?.connected ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#fbbf24' }} />
+                  <span className="text-xs font-semibold tracking-widest" style={{ color: '#fbbf24' }}>
+                    SETUP NEEDED
                   </span>
                 </div>
               ) : (
@@ -203,7 +216,7 @@ export function IntegrationsPage() {
               )}
             </div>
 
-            {googleAccount?.connected && (
+            {googleAccount?.connected && gbpIds.account && gbpIds.location && (
               <div
                 className="mt-4 pt-4 flex items-center gap-2"
                 style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}
@@ -215,7 +228,15 @@ export function IntegrationsPage() {
               </div>
             )}
 
-            {!googleAccount?.connected && !acctLoading && (
+            {googleAccount?.connected && (!gbpIds.account || !gbpIds.location) && !acctLoading && (
+              <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgba(251,191,36,0.1)' }}>
+                <p className="text-xs mb-3" style={{ color: 'rgba(251,191,36,0.7)' }}>
+                  OAuth connected but Business Profile IDs are missing — enter them below to activate the agent.
+                </p>
+              </div>
+            )}
+
+            {(!googleAccount?.connected || !gbpIds.account || !gbpIds.location) && !acctLoading && (
               <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                 <button
                   onClick={() => setShowManual(v => !v)}
