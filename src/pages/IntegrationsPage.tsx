@@ -13,7 +13,7 @@ interface SocialAccount {
   updated_at: string
 }
 
-const GOOGLE_CLIENT_ID = '763647234428-nuu71d9svv04cekj0j3n7m6mpusar6oa.apps.googleusercontent.com'
+const GOOGLE_CLIENT_ID = '602381566088-s7dcq0m47u4dr623bvefvakn98c14dqr.apps.googleusercontent.com'
 
 function startGoogleOAuth() {
   const redirectUri = `${window.location.origin}/auth/google/callback`
