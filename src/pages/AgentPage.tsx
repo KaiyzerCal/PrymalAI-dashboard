@@ -164,17 +164,119 @@ function ApprovalCard({
 
 // ─── Google-specific content ─────────────────────────────────────────────────
 
+interface ClientRow {
+  gbp_account_id: string | null
+  gbp_location_id: string | null
+}
+
+function GoogleSetupBanner({ client }: { client: ClientRow | null }) {
+  const hasTokens = true // already confirmed tokens stored
+  const hasIds = !!(client?.gbp_account_id && client?.gbp_location_id)
+
+  const steps = [
+    {
+      done: hasTokens,
+      label: 'Google account connected',
+      detail: 'OAuth tokens stored successfully.',
+    },
+    {
+      done: hasIds,
+      label: 'Business Profile IDs configured',
+      detail: hasIds
+        ? `Account: ${client?.gbp_account_id}`
+        : 'Enter your GBP Account ID and Location ID in Settings → Integrations.',
+    },
+    {
+      done: false,
+      label: 'Google API access approved',
+      detail: 'Google requires manual approval for new projects. Request quota increase in Google Cloud Console.',
+    },
+  ]
+
+  if (hasIds) return null
+
+  return (
+    <div
+      className="rounded-xl p-5 mb-6"
+      style={{ background: 'rgba(8,13,22,0.9)', border: '1px solid rgba(251,191,36,0.2)' }}
+    >
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-2 h-2 rounded-full" style={{ background: '#fbbf24' }} />
+        <p className="text-xs font-bold tracking-widest" style={{ color: '#fbbf24' }}>SETUP REQUIRED</p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {steps.map((step, i) => (
+          <div key={i} className="flex items-start gap-3">
+            <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+              step.done
+                ? 'bg-green-500/20 text-green-400'
+                : 'bg-zinc-800 text-zinc-500'
+            }`} style={step.done ? { border: '1px solid rgba(74,222,128,0.3)' } : { border: '1px solid rgba(255,255,255,0.1)' }}>
+              {step.done ? '✓' : i + 1}
+            </div>
+            <div className="flex-1">
+              <p className={`text-sm font-medium ${step.done ? 'text-zinc-400 line-through' : 'text-white'}`}>
+                {step.label}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{step.detail}</p>
+              {i === 1 && !step.done && (
+                <a
+                  href="/settings"
+                  className="inline-block mt-2 text-xs font-semibold tracking-widest px-3 py-1.5 rounded-lg transition-all"
+                  style={{
+                    background: 'rgba(0,212,255,0.08)',
+                    border: '1px solid rgba(0,212,255,0.25)',
+                    color: '#00d4ff',
+                  }}
+                >
+                  GO TO SETTINGS →
+                </a>
+              )}
+              {i === 2 && (
+                <a
+                  href="https://console.cloud.google.com/apis/api/mybusinessaccountmanagement.googleapis.com/quotas?project=fluted-current-500019-i0"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-2 text-xs font-semibold tracking-widest px-3 py-1.5 rounded-lg transition-all"
+                  style={{
+                    background: 'rgba(251,191,36,0.08)',
+                    border: '1px solid rgba(251,191,36,0.25)',
+                    color: '#fbbf24',
+                  }}
+                >
+                  REQUEST QUOTA INCREASE →
+                </a>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function GoogleContent() {
   const [reviews, setReviews] = useState<GmbReview[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'responded'>('all')
+  const [client, setClient] = useState<ClientRow | null>(null)
 
   useEffect(() => {
-    supabase
-      .from('prymal_gmb_reviews')
-      .select('*')
-      .order('review_date', { ascending: false, nullsFirst: false })
-      .then(({ data }) => { setReviews(data ?? []); setLoading(false) })
+    Promise.all([
+      supabase
+        .from('prymal_gmb_reviews')
+        .select('*')
+        .order('review_date', { ascending: false, nullsFirst: false }),
+      supabase
+        .from('prymal_clients')
+        .select('gbp_account_id, gbp_location_id')
+        .single(),
+    ]).then(([reviewsRes, clientRes]) => {
+      setReviews(reviewsRes.data ?? [])
+      setClient(clientRes.data ?? null)
+      setLoading(false)
+    })
   }, [])
 
   const filtered = reviews.filter(r => filter === 'all' || r.response_status === filter)
@@ -185,6 +287,8 @@ function GoogleContent() {
 
   return (
     <div className="mt-8">
+      {!loading && <GoogleSetupBanner client={client} />}
+
       <h2 className="text-xs font-bold tracking-widest mb-4" style={{ color: 'rgba(0,212,255,0.7)' }}>GOOGLE REVIEWS</h2>
 
       <div className="grid grid-cols-3 gap-3 mb-5">
@@ -219,7 +323,15 @@ function GoogleContent() {
       {loading ? (
         <p className="text-zinc-500 text-sm">Loading…</p>
       ) : filtered.length === 0 ? (
-        <p className="text-zinc-500 text-sm">No reviews found.</p>
+        <div
+          className="rounded-xl p-6 text-center"
+          style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.08)' }}
+        >
+          <p className="text-zinc-500 text-sm mb-1">No reviews synced yet.</p>
+          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>
+            Reviews will appear here once your Google Business Profile API access is approved and Business Profile IDs are configured.
+          </p>
+        </div>
       ) : (
         <div className="flex flex-col gap-3">
           {filtered.map(review => (

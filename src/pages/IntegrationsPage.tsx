@@ -228,9 +228,18 @@ export function IntegrationsPage() {
 
                 {showManual && (
                   <form onSubmit={handleManualConnect} className="mt-4 flex flex-col gap-3">
-                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                      Find your IDs at <span style={{ color: '#00d4ff' }}>business.google.com</span> → Settings → Advanced settings → Account ID &amp; Location ID.
-                    </p>
+                    <div className="text-xs rounded-lg p-3" style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.1)' }}>
+                      <p className="font-semibold mb-1" style={{ color: 'rgba(0,212,255,0.7)' }}>HOW TO FIND YOUR IDS</p>
+                      <ol className="list-decimal list-inside space-y-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                        <li>Go to <span style={{ color: '#00d4ff' }}>business.google.com</span> and sign in as <span style={{ color: '#00d4ff' }}>bioneerfitness@gmail.com</span></li>
+                        <li>Click your business name to open it</li>
+                        <li>Click the 3-dot menu → <strong className="text-white">Business Profile Settings</strong></li>
+                        <li>Click <strong className="text-white">Advanced Settings</strong></li>
+                        <li>Copy the <strong className="text-white">Account ID</strong> (numbers only, e.g. <span style={{ color: 'rgba(0,212,255,0.6)' }}>123456789</span>)</li>
+                        <li>Copy the <strong className="text-white">Location ID</strong> (numbers only, e.g. <span style={{ color: 'rgba(0,212,255,0.6)' }}>987654321</span>)</li>
+                      </ol>
+                      <p className="mt-2" style={{ color: 'rgba(255,255,255,0.25)' }}>Enter them below with the <span style={{ color: 'rgba(0,212,255,0.5)' }}>accounts/</span> prefix as shown.</p>
+                    </div>
                     {[
                       { key: 'businessName', label: 'BUSINESS NAME', placeholder: 'Bioneer Fitness' },
                       { key: 'accountId', label: 'ACCOUNT ID', placeholder: 'accounts/123456789' },
