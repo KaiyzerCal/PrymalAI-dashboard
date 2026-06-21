@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Globe, Sparkles, Mail, MessageCircle, TrendingUp } from 'lucide-react'
+import { Globe, Sparkles, Mail, MessageCircle, TrendingUp, CalendarCheck } from 'lucide-react'
 
 export interface AgentDef {
   id: string
@@ -52,6 +52,15 @@ export const AGENTS: AgentDef[] = [
     capabilities: ['Inbound reply drafting', '24/7 coverage', 'Tone matching', 'Escalation routing'],
     color: { text: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', dot: 'bg-cyan-400' },
     icon: MessageCircle,
+  },
+  {
+    id: 'booking',
+    name: 'Booking Agent',
+    tagline: 'Appointments, scheduling & reminders',
+    description: 'Manages your entire appointment pipeline autonomously. Qualifies inbound enquiries, proposes available slots, sends confirmation and reminder messages, and handles reschedules — so your calendar fills itself.',
+    capabilities: ['Appointment scheduling', 'Automated reminders', 'Reschedule handling', 'Enquiry qualification'],
+    color: { text: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20', dot: 'bg-rose-400' },
+    icon: CalendarCheck,
   },
   {
     id: 'intel',

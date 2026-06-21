@@ -458,6 +458,61 @@ function IntelContent() {
   )
 }
 
+// ─── Booking ──────────────────────────────────────────────────────────────────
+
+function BookingContent() {
+  const stats = [
+    { label: 'APPOINTMENTS THIS WEEK', value: '—' },
+    { label: 'REMINDERS SENT', value: '—' },
+    { label: 'RESCHEDULES HANDLED', value: '—' },
+    { label: 'SHOW RATE', value: '—' },
+  ]
+
+  return (
+    <div className="mt-8">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="h-px flex-shrink-0 w-4" style={{ background: 'rgba(0,212,255,0.3)' }} />
+        <h2 className="text-xs font-bold tracking-widest" style={{ color: 'rgba(0,212,255,0.7)' }}>BOOKING OVERVIEW</h2>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        {stats.map(({ label, value }) => (
+          <div
+            key={label}
+            className="rounded-xl p-4"
+            style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.08)' }}
+          >
+            <p className="text-2xl font-bold text-white mb-1">{value}</p>
+            <p className="text-xs tracking-widest" style={{ color: 'rgba(0,212,255,0.45)' }}>{label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div
+        className="rounded-xl p-6 text-center"
+        style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(244,63,94,0.15)' }}
+      >
+        <div
+          className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4"
+          style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.2)' }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(244,63,94,0.8)" strokeWidth="1.5">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+            <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" strokeLinecap="round" />
+          </svg>
+        </div>
+        <p className="text-white font-semibold tracking-wide text-sm mb-2">BOOKING INTEGRATION COMING SOON</p>
+        <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.35)' }}>
+          Connect your calendar (Calendly, Google Calendar, or custom) and the Booking Agent will autonomously qualify enquiries, schedule appointments, send reminders, and handle reschedules on your behalf.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // ─── Outreach / Service history ───────────────────────────────────────────────
 
 function AgentHistory({ agentId }: { agentId: string }) {
@@ -666,6 +721,7 @@ export function AgentPage() {
       {id === 'google' && <GoogleContent />}
       {id === 'brand' && <BrandContent />}
       {id === 'intel' && <IntelContent />}
+      {id === 'booking' && <BookingContent />}
       {(id === 'outreach' || id === 'service') && <AgentHistory agentId={id} />}
     </div>
   )
