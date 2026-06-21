@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useClient } from '@/hooks/useClient'
-import { CheckCircle, XCircle, Globe } from 'lucide-react'
+import { CheckCircle, XCircle, Globe, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 type Tab = 'brand' | 'integrations'
@@ -74,6 +74,42 @@ export function IntegrationsPage() {
   }
 
   const googleAccount = accounts.find(a => a.platform === 'google')
+  const [showManual, setShowManual] = useState(false)
+  const [manualForm, setManualForm] = useState({ accountId: '', locationId: '', businessName: '' })
+  const [manualSaving, setManualSaving] = useState(false)
+  const [manualMsg, setManualMsg] = useState<{ text: string; ok: boolean } | null>(null)
+
+  async function handleManualConnect(e: React.FormEvent) {
+    e.preventDefault()
+    setManualSaving(true)
+    setManualMsg(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setManualMsg({ text: 'Not signed in.', ok: false }); return }
+
+      const { data: clientRow } = await supabase.from('prymal_clients').select('id').single()
+      if (!clientRow) { setManualMsg({ text: 'Client record not found.', ok: false }); return }
+
+      await supabase.from('prymal_clients').update({
+        gbp_account_id: manualForm.accountId.trim(),
+        gbp_location_id: manualForm.locationId.trim(),
+      }).eq('id', clientRow.id)
+
+      await supabase.from('prymal_social_accounts').upsert({
+        client_id: clientRow.id,
+        platform: 'google',
+        handle: manualForm.businessName.trim() || manualForm.locationId.trim(),
+        connected: true,
+      }, { onConflict: 'client_id,platform' })
+
+      setManualMsg({ text: 'Connected! Reload to see updated status.', ok: true })
+      setTimeout(() => window.location.reload(), 1500)
+    } catch (err) {
+      setManualMsg({ text: String(err), ok: false })
+    } finally {
+      setManualSaving(false)
+    }
+  }
 
   return (
     <div className="p-6 max-w-2xl relative">
@@ -176,6 +212,57 @@ export function IntegrationsPage() {
                 <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
                   {googleAccount.handle ?? 'Business Profile connected'}
                 </span>
+              </div>
+            )}
+
+            {!googleAccount?.connected && !acctLoading && (
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <button
+                  onClick={() => setShowManual(v => !v)}
+                  className="flex items-center gap-1.5 text-xs tracking-wide transition-colors"
+                  style={{ color: 'rgba(0,212,255,0.45)' }}
+                >
+                  <ChevronDown size={12} style={{ transform: showManual ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                  Enter GBP IDs manually instead
+                </button>
+
+                {showManual && (
+                  <form onSubmit={handleManualConnect} className="mt-4 flex flex-col gap-3">
+                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                      Find your IDs at <span style={{ color: '#00d4ff' }}>business.google.com</span> → Settings → Advanced settings → Account ID &amp; Location ID.
+                    </p>
+                    {[
+                      { key: 'businessName', label: 'BUSINESS NAME', placeholder: 'Bioneer Fitness' },
+                      { key: 'accountId', label: 'ACCOUNT ID', placeholder: 'accounts/123456789' },
+                      { key: 'locationId', label: 'LOCATION ID', placeholder: 'accounts/123456789/locations/987654321' },
+                    ].map(({ key, label, placeholder }) => (
+                      <div key={key}>
+                        <label className="block text-xs font-semibold tracking-widest mb-1.5" style={{ color: 'rgba(0,212,255,0.45)' }}>{label}</label>
+                        <input
+                          type="text"
+                          placeholder={placeholder}
+                          value={manualForm[key as keyof typeof manualForm]}
+                          onChange={e => setManualForm(f => ({ ...f, [key]: e.target.value }))}
+                          className="w-full rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none"
+                          style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)' }}
+                          onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.3)' }}
+                          onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.12)' }}
+                        />
+                      </div>
+                    ))}
+                    {manualMsg && (
+                      <p className={`text-xs ${manualMsg.ok ? 'text-green-400' : 'text-red-400'}`}>{manualMsg.text}</p>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={manualSaving || !manualForm.accountId || !manualForm.locationId}
+                      className="py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                      style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff' }}
+                    >
+                      {manualSaving ? 'SAVING…' : 'SAVE & CONNECT'}
+                    </button>
+                  </form>
+                )}
               </div>
             )}
           </div>
