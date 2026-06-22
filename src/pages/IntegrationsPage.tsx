@@ -41,6 +41,7 @@ export function IntegrationsPage() {
   const [form, setForm] = useState({ brand_tone: '', knowledge_base: '', delivery_cadence: '' })
   const [accounts, setAccounts] = useState<SocialAccount[]>([])
   const [acctLoading, setAcctLoading] = useState(true)
+  const googleAccount = accounts.find(a => a.platform === 'google')
 
   useEffect(() => {
     if (client) {
@@ -79,11 +80,32 @@ export function IntegrationsPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const googleAccount = accounts.find(a => a.platform === 'google')
+  const gbpConnected = !!(googleAccount?.connected && gbpIds.account && gbpIds.location && gbpIds.location !== '0' && gbpIds.account !== '0')
+  const gbpTokensOnly = !!(googleAccount?.connected && (!gbpIds.account || !gbpIds.location || gbpIds.location === '0' || gbpIds.account === '0'))
   const [showManual, setShowManual] = useState(false)
-  const [manualForm, setManualForm] = useState({ accountId: '', locationId: '', businessName: '' })
+  const [manualForm, setManualForm] = useState({ accountId: gbpIds.account ?? '', locationId: gbpIds.location && gbpIds.location !== '0' ? gbpIds.location : '', businessName: '' })
   const [manualSaving, setManualSaving] = useState(false)
   const [manualMsg, setManualMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [rediscovering, setRediscovering] = useState(false)
+
+  async function handleRediscover() {
+    setRediscovering(true)
+    setManualMsg(null)
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`${FUNCTION_BASE}/prymal-google-oauth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ action: 'rediscover' }),
+    })
+    const data = await res.json()
+    if (data.location_id && data.location_id !== '0') {
+      setManualMsg({ text: `Found location: ${data.location_id}. Reloading…`, ok: true })
+      setTimeout(() => window.location.reload(), 1500)
+    } else {
+      setManualMsg({ text: data.error ?? 'Could not auto-discover location — GBP API quota may still be 0. Enter IDs manually below.', ok: false })
+    }
+    setRediscovering(false)
+  }
 
   async function handleManualConnect(e: React.FormEvent) {
     e.preventDefault()
@@ -184,14 +206,14 @@ export function IntegrationsPage() {
 
               {acctLoading ? (
                 <div className="w-24 h-8 rounded-lg animate-pulse" style={{ background: 'rgba(0,212,255,0.05)' }} />
-              ) : googleAccount?.connected && gbpIds.account && gbpIds.location ? (
+              ) : gbpConnected ? (
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full dot-pulse" style={{ background: '#00d4ff' }} />
                   <span className="text-xs font-semibold tracking-widest" style={{ color: '#00d4ff' }}>
                     CONNECTED
                   </span>
                 </div>
-              ) : googleAccount?.connected ? (
+              ) : gbpTokensOnly ? (
                 <div className="flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#fbbf24' }} />
                   <span className="text-xs font-semibold tracking-widest" style={{ color: '#fbbf24' }}>
@@ -216,30 +238,45 @@ export function IntegrationsPage() {
               )}
             </div>
 
-            {googleAccount?.connected && gbpIds.account && gbpIds.location && (
+            {gbpConnected && !acctLoading && (
               <div
                 className="mt-4 pt-4 flex items-center gap-2"
                 style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}
               >
                 <CheckCircle size={13} style={{ color: '#00d4ff' }} />
                 <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  {googleAccount.handle ?? 'Business Profile connected'}
+                  {googleAccount?.handle ?? 'Business Profile connected'} · Location: {gbpIds.location}
                 </span>
               </div>
             )}
 
-            {googleAccount?.connected && (!gbpIds.account || !gbpIds.location) && !acctLoading && (
+            {gbpTokensOnly && !acctLoading && (
               <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgba(251,191,36,0.1)' }}>
                 <p className="text-xs mb-3" style={{ color: 'rgba(251,191,36,0.7)' }}>
-                  OAuth connected but Business Profile IDs are missing — enter them below to activate the agent.
+                  OAuth authorized but your Business Profile location ID wasn't found automatically (GBP API quota issue). Try re-discovering or enter IDs manually.
                 </p>
+                <button
+                  onClick={handleRediscover}
+                  disabled={rediscovering}
+                  className="px-4 py-1.5 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40 mb-3"
+                  style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24' }}
+                >
+                  {rediscovering ? 'SEARCHING…' : '↻ RE-DISCOVER LOCATION'}
+                </button>
+                {manualMsg && <p className={`text-xs mb-2 ${manualMsg.ok ? 'text-green-400' : 'text-red-400'}`}>{manualMsg.text}</p>}
               </div>
             )}
 
-            {(!googleAccount?.connected || !gbpIds.account || !gbpIds.location) && !acctLoading && (
+            {(!gbpConnected) && !acctLoading && (
               <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                 <button
-                  onClick={() => setShowManual(v => !v)}
+                  onClick={() => {
+                    setShowManual(v => !v)
+                    setManualForm(f => ({
+                      ...f,
+                      accountId: f.accountId || (gbpIds.account && gbpIds.account !== '0' ? gbpIds.account : ''),
+                    }))
+                  }}
                   className="flex items-center gap-1.5 text-xs tracking-wide transition-colors"
                   style={{ color: 'rgba(0,212,255,0.45)' }}
                 >
