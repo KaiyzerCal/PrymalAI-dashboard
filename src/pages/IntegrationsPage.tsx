@@ -5,6 +5,33 @@ import { supabase, FUNCTION_BASE } from '@/lib/supabase'
 
 type Tab = 'brand' | 'integrations' | 'billing'
 
+function useAnthropicKey() {
+  const [key, setKey] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    supabase.from('prymal_clients').select('anthropic_api_key').single().then(({ data }) => {
+      if (data?.anthropic_api_key) setKey(data.anthropic_api_key)
+      setLoaded(true)
+    })
+  }, [])
+
+  async function save() {
+    setSaving(true)
+    const { data: clientRow } = await supabase.from('prymal_clients').select('id').single()
+    if (clientRow) {
+      await supabase.from('prymal_clients').update({ anthropic_api_key: key.trim() }).eq('id', clientRow.id)
+    }
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return { key, setKey, save, saving, saved, loaded }
+}
+
 interface SocialAccount {
   id: string
   platform: string
@@ -36,6 +63,7 @@ function startGoogleOAuth() {
 export function IntegrationsPage() {
   const { client, loading: clientLoading, update } = useClient()
   const [tab, setTab] = useState<Tab>('integrations')
+  const anthropicKey = useAnthropicKey()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [form, setForm] = useState({ brand_tone: '', knowledge_base: '', delivery_cadence: '' })
@@ -332,6 +360,55 @@ export function IntegrationsPage() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* AI Engine card */}
+          <div
+            className="rounded-xl p-5"
+            style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.1)' }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl" style={{ background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.15)' }}>
+                  <Zap size={18} style={{ color: '#00d4ff' }} />
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-sm tracking-wide">AI Engine</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'rgba(0,212,255,0.45)' }}>Anthropic API key — powers your agents &amp; chat</p>
+                </div>
+              </div>
+              {anthropicKey.loaded && (
+                <div className="flex items-center gap-2">
+                  <span className={`w-1.5 h-1.5 rounded-full ${anthropicKey.key ? 'dot-pulse' : ''}`} style={{ background: anthropicKey.key ? '#00d4ff' : 'rgba(255,255,255,0.2)' }} />
+                  <span className="text-xs font-semibold tracking-widest" style={{ color: anthropicKey.key ? '#00d4ff' : 'rgba(255,255,255,0.3)' }}>
+                    {anthropicKey.key ? 'CONFIGURED' : 'NOT SET'}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                placeholder="sk-ant-api03-…"
+                value={anthropicKey.key}
+                onChange={e => anthropicKey.setKey(e.target.value)}
+                className="flex-1 rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none"
+                style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)' }}
+                onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.3)' }}
+                onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.12)' }}
+              />
+              <button
+                onClick={anthropicKey.save}
+                disabled={anthropicKey.saving || !anthropicKey.key.trim()}
+                className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff' }}
+              >
+                {anthropicKey.saved ? 'SAVED ✓' : anthropicKey.saving ? 'SAVING…' : 'SAVE'}
+              </button>
+            </div>
+            <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.25)' }}>
+              Get your key at <span style={{ color: 'rgba(0,212,255,0.5)' }}>console.anthropic.com</span> → API Keys. Each client uses their own key.
+            </p>
           </div>
 
           {/* Placeholder cards for future integrations */}

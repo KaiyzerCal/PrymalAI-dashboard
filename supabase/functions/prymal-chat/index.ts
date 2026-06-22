@@ -3,9 +3,6 @@ import { createClient } from 'npm:@supabase/supabase-js'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')!
-
-const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY })
 
 const SYSTEM_PROMPT = `You are Prymal — an autonomous AI operations system managing a client's full digital presence. You have real-time access to their approval queue, agent activity, and connected integrations.
 
@@ -30,7 +27,7 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        agent_id: { type: 'string', description: 'Filter by agent: google, brand, intel, outreach, service, booking. Omit for all.' }
+        agent: { type: 'string', description: 'Filter by agent: google, brand, intel, outreach, service, booking. Omit for all.' }
       }
     }
   },
@@ -45,10 +42,10 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        agent_id: { type: 'string', description: 'Agent ID: google, brand, intel, outreach, service, booking' },
+        agent: { type: 'string', description: 'Agent: google, brand, intel, outreach, service, booking' },
         limit: { type: 'number', default: 10 }
       },
-      required: ['agent_id']
+      required: ['agent']
     }
   },
   {
@@ -57,12 +54,12 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        agent_id: { type: 'string', description: 'Which agent is taking this action' },
+        agent: { type: 'string', description: 'Which agent is taking this action' },
         action_type: { type: 'string', description: 'Type of action, e.g. send_email, post_content, respond_to_review, send_outreach' },
-        title: { type: 'string', description: 'Short title shown in the approval card' },
-        payload: { type: 'object', description: 'Full details of the action (recipient, content, etc.)' }
+        summary: { type: 'string', description: 'Short summary shown in the approval card' },
+        draft_content: { type: 'string', description: 'Full draft content of the action (email body, post text, review response, etc.)' }
       },
-      required: ['agent_id', 'action_type', 'title', 'payload']
+      required: ['agent', 'action_type', 'summary', 'draft_content']
     }
   },
   {
@@ -94,7 +91,7 @@ async function handleTool(
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(20)
-      if (input.agent_id) query = query.eq('agent_id', input.agent_id as string)
+      if (input.agent) query = query.eq('agent', input.agent as string)
       const { data, error } = await query
       if (error) throw new Error(error.message)
       return { count: data?.length ?? 0, items: data ?? [] }
@@ -115,9 +112,9 @@ async function handleTool(
         .from('prymal_approval_queue')
         .select('*')
         .eq('client_id', clientId)
-        .eq('agent_id', input.agent_id as string)
+        .eq('agent', input.agent as string)
         .eq('status', 'approved')
-        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit((input.limit as number) ?? 10)
       if (error) throw new Error(error.message)
       return { count: data?.length ?? 0, items: data ?? [] }
@@ -128,10 +125,10 @@ async function handleTool(
         .from('prymal_approval_queue')
         .insert({
           client_id: clientId,
-          agent_id: input.agent_id,
+          agent: input.agent,
           action_type: input.action_type,
-          title: input.title,
-          payload: input.payload,
+          summary: input.summary,
+          draft_content: input.draft_content,
           status: 'pending',
         })
         .select('id')
@@ -180,10 +177,20 @@ Deno.serve(async (req) => {
 
     const { data: clientRow } = await supabase
       .from('prymal_clients')
-      .select('id')
+      .select('id, anthropic_api_key')
       .eq('user_id', user.id)
       .single()
     if (!clientRow) return new Response(JSON.stringify({ error: 'Client not found' }), { status: 404 })
+
+    const apiKey = clientRow.anthropic_api_key
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: 'No Anthropic API key configured. Go to Settings → Integrations → AI Engine to add yours.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      )
+    }
+
+    const anthropic = new Anthropic({ apiKey })
 
     const { message, history = [] } = await req.json()
 
