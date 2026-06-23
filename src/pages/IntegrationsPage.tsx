@@ -238,7 +238,7 @@ export function IntegrationsPage() {
           <IntegrationCard
             icon={<Globe size={18} style={{ color: '#00d4ff' }} />}
             title="Google Business Profile"
-            subtitle="Review monitoring & AI-drafted responses · Starter+"
+            subtitle="Review monitoring & AI-drafted responses · Pro+"
             loading={acctLoading}
             connected={gbpConnected}
             warning={gbpTokensOnly}
@@ -396,7 +396,7 @@ export function IntegrationsPage() {
           <IntegrationCard
             icon={<Mail size={18} style={{ color: '#00d4ff' }} />}
             title="Gmail"
-            subtitle="Read inbox, compose & send emails via AI · Pro+"
+            subtitle="Read inbox, compose & send emails via AI · Starter+"
             loading={acctLoading}
             connected={connectedPlatforms.has('gmail')}
           >
@@ -429,7 +429,7 @@ export function IntegrationsPage() {
           <IntegrationCard
             icon={<Calendar size={18} style={{ color: '#00d4ff' }} />}
             title="Google Calendar"
-            subtitle="View schedule, check availability & create events · Pro+"
+            subtitle="View schedule, check availability & create events · Starter+"
             loading={acctLoading}
             connected={connectedPlatforms.has('calendar')}
           >
@@ -462,7 +462,7 @@ export function IntegrationsPage() {
           <IntegrationCard
             icon={<HardDrive size={18} style={{ color: '#00d4ff' }} />}
             title="Google Drive"
-            subtitle="Read & search documents, reports & files · Agency"
+            subtitle="Read & search documents, reports & files · Starter+"
             loading={acctLoading}
             connected={connectedPlatforms.has('drive')}
           >

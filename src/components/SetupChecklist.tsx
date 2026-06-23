@@ -35,22 +35,22 @@ export function SetupChecklist() {
           done: !!client?.anthropic_api_key,
         },
         {
-          id: 'google',
-          label: 'Connect Google Business Profile',
-          description: 'Review monitoring & AI responses',
-          done: connected.has('google') && !!client?.gbp_account_id,
-        },
-        {
           id: 'gmail',
           label: 'Connect Gmail',
-          description: 'Read inbox & send approved emails',
+          description: 'Read inbox & send approved emails · Starter',
           done: connected.has('gmail'),
         },
         {
           id: 'calendar',
           label: 'Connect Google Calendar',
-          description: 'View schedule & create events',
+          description: 'View schedule & create events · Starter',
           done: connected.has('calendar'),
+        },
+        {
+          id: 'drive',
+          label: 'Connect Google Drive',
+          description: 'Search & read your documents · Starter',
+          done: connected.has('drive'),
         },
         {
           id: 'brand',
