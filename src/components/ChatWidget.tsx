@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { MessageSquare, Mic, MicOff, Volume2, VolumeX, Send, ChevronDown } from 'lucide-react'
+import { MessageSquare, Mic, MicOff, Volume2, VolumeX, Send, ChevronDown, Trash2 } from 'lucide-react'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
 
 interface Message {
@@ -26,19 +26,37 @@ declare global {
 }
 
 export function ChatWidget() {
+  const INITIAL_MESSAGE: Message = { role: 'assistant', content: 'Hi — I\'m Prymal. Ask me anything about your agents, approvals, emails, or calendar. I can also take actions on your behalf.' }
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Hi — I\'m Prymal. Ask me anything about your agents, approvals, emails, or calendar. I can also take actions on your behalf.' }
-  ])
+  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [history, setHistory] = useState<Message[]>([])
   const [ttsEnabled, setTtsEnabled] = useState(false)
+  const [initialized, setInitialized] = useState(false)
   const [listening, setListening] = useState(false)
   const [unread, setUnread] = useState(0)
   const recognitionRef = useRef<ISpeechRecognition | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem('prymal_chat_messages')
+    const savedHistory = sessionStorage.getItem('prymal_chat_history')
+    if (saved) setMessages(JSON.parse(saved))
+    if (savedHistory) setHistory(JSON.parse(savedHistory))
+    setInitialized(true)
+  }, [])
+
+  useEffect(() => {
+    if (!initialized) return
+    sessionStorage.setItem('prymal_chat_messages', JSON.stringify(messages))
+  }, [messages, initialized])
+
+  useEffect(() => {
+    if (!initialized) return
+    sessionStorage.setItem('prymal_chat_history', JSON.stringify(history))
+  }, [history, initialized])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -91,6 +109,13 @@ export function ChatWidget() {
       if (prev) window.speechSynthesis.cancel()
       return !prev
     })
+  }
+
+  function clearChat() {
+    sessionStorage.removeItem('prymal_chat_messages')
+    sessionStorage.removeItem('prymal_chat_history')
+    setMessages([INITIAL_MESSAGE])
+    setHistory([])
   }
 
   async function send() {
@@ -188,6 +213,16 @@ export function ChatWidget() {
               <span className="text-xs font-bold tracking-widest" style={{ color: '#00d4ff' }}>PRYMAL AI</span>
             </div>
             <div className="flex items-center gap-1">
+              <button
+                onClick={clearChat}
+                className="p-1.5 rounded-lg transition-all"
+                title="Clear chat"
+                style={{ color: 'rgba(255,255,255,0.3)' }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'rgba(239,68,68,0.7)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.3)' }}
+              >
+                <Trash2 size={15} />
+              </button>
               <button
                 onClick={toggleTts}
                 className="p-1.5 rounded-lg transition-all"

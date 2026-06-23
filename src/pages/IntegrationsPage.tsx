@@ -112,6 +112,17 @@ export function IntegrationsPage() {
     load()
   }, [])
 
+  async function handleDisconnect(platform: string) {
+    const { data: clientRow } = await supabase.from('prymal_clients').select('id').single()
+    if (!clientRow) return
+    await supabase.from('prymal_oauth_tokens').delete().eq('client_id', clientRow.id).eq('platform', platform)
+    await supabase.from('prymal_social_accounts').update({ connected: false }).eq('client_id', clientRow.id).eq('platform', platform)
+    if (platform === 'google' || platform === 'gbp') {
+      await supabase.from('prymal_clients').update({ gbp_account_id: null, gbp_location_id: null }).eq('id', clientRow.id)
+    }
+    setTimeout(() => window.location.reload(), 800)
+  }
+
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
@@ -238,11 +249,13 @@ export function IntegrationsPage() {
                   className="mt-4 pt-4 flex items-center justify-between"
                   style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <CheckCircle size={13} style={{ color: '#00d4ff' }} />
                     <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
                       {googleAccount?.handle ?? 'Business Profile connected'}{gbpIds.location && gbpIds.location !== '0' ? ` · ${gbpIds.location}` : ''}
                     </span>
+                    <button onClick={() => handleDisconnect('google')} className="text-xs px-2 py-0.5 rounded" style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}>Disconnect</button>
+                    <button onClick={() => startGoogleOAuth('gbp')} className="text-xs px-2 py-0.5 rounded" style={{color: 'rgba(0,212,255,0.7)', border: '1px solid rgba(0,212,255,0.2)'}}>Reconnect</button>
                   </div>
                   <button
                     onClick={() => { setGbpEditing(v => !v); setManualMsg(null) }}
@@ -403,9 +416,11 @@ export function IntegrationsPage() {
               </div>
             )}
             {!acctLoading && connectedPlatforms.has('gmail') && (
-              <div className="mt-4 pt-4 flex items-center gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+              <div className="mt-4 pt-4 flex items-center gap-2 flex-wrap" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                 <CheckCircle size={13} style={{ color: '#00d4ff' }} />
                 <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Gmail authorized — agents can read and send email</span>
+                <button onClick={() => handleDisconnect('gmail')} className="text-xs px-2 py-0.5 rounded" style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}>Disconnect</button>
+                <button onClick={() => startGoogleOAuth('gmail')} className="text-xs px-2 py-0.5 rounded" style={{color: 'rgba(0,212,255,0.7)', border: '1px solid rgba(0,212,255,0.2)'}}>Reconnect</button>
               </div>
             )}
           </IntegrationCard>
@@ -434,9 +449,11 @@ export function IntegrationsPage() {
               </div>
             )}
             {!acctLoading && connectedPlatforms.has('calendar') && (
-              <div className="mt-4 pt-4 flex items-center gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+              <div className="mt-4 pt-4 flex items-center gap-2 flex-wrap" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                 <CheckCircle size={13} style={{ color: '#00d4ff' }} />
                 <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Calendar authorized — Booking Agent can manage appointments</span>
+                <button onClick={() => handleDisconnect('calendar')} className="text-xs px-2 py-0.5 rounded" style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}>Disconnect</button>
+                <button onClick={() => startGoogleOAuth('calendar')} className="text-xs px-2 py-0.5 rounded" style={{color: 'rgba(0,212,255,0.7)', border: '1px solid rgba(0,212,255,0.2)'}}>Reconnect</button>
               </div>
             )}
           </IntegrationCard>
@@ -465,9 +482,11 @@ export function IntegrationsPage() {
               </div>
             )}
             {!acctLoading && connectedPlatforms.has('drive') && (
-              <div className="mt-4 pt-4 flex items-center gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+              <div className="mt-4 pt-4 flex items-center gap-2 flex-wrap" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                 <CheckCircle size={13} style={{ color: '#00d4ff' }} />
                 <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Drive authorized — agents can read your documents</span>
+                <button onClick={() => handleDisconnect('drive')} className="text-xs px-2 py-0.5 rounded" style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}>Disconnect</button>
+                <button onClick={() => startGoogleOAuth('drive')} className="text-xs px-2 py-0.5 rounded" style={{color: 'rgba(0,212,255,0.7)', border: '1px solid rgba(0,212,255,0.2)'}}>Reconnect</button>
               </div>
             )}
           </IntegrationCard>

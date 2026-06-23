@@ -261,6 +261,27 @@ function GoogleContent() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'responded'>('all')
   const [client, setClient] = useState<ClientRow | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
+  async function syncReviews() {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${FUNCTION_BASE}/prymal-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ message: 'Please fetch all my Google Business Profile reviews from the GBP API and save them to the database so they show up in my dashboard.' }),
+      })
+      const data = await res.json()
+      setSyncMsg(data.reply ? 'Reviews synced — reload to see them.' : 'Sync failed.')
+      if (data.reply) setTimeout(() => window.location.reload(), 1500)
+    } catch {
+      setSyncMsg('Network error during sync.')
+    }
+    setSyncing(false)
+  }
 
   useEffect(() => {
     Promise.all([
@@ -289,7 +310,23 @@ function GoogleContent() {
     <div className="mt-8">
       {!loading && <GoogleSetupBanner client={client} />}
 
-      <h2 className="text-xs font-bold tracking-widest mb-4" style={{ color: 'rgba(0,212,255,0.7)' }}>GOOGLE REVIEWS</h2>
+      <div className="flex items-center gap-4 mb-4">
+        <h2 className="text-xs font-bold tracking-widest" style={{ color: 'rgba(0,212,255,0.7)' }}>GOOGLE REVIEWS</h2>
+        <button
+          onClick={syncReviews}
+          disabled={syncing}
+          className="flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-50"
+          style={{
+            background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+            border: '1px solid rgba(0,212,255,0.35)',
+            color: '#00d4ff',
+          }}
+        >
+          <Play size={11} />
+          {syncing ? 'SYNCING…' : 'SYNC'}
+        </button>
+        {syncMsg && <span className={`text-xs ${syncMsg.includes('failed') || syncMsg.includes('error') ? 'text-red-400' : 'text-green-400'}`}>{syncMsg}</span>}
+      </div>
 
       <div className="grid grid-cols-3 gap-3 mb-5">
         {[
