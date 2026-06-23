@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { MessageSquare, X, Mic, MicOff, Volume2, VolumeX, Send, ChevronDown } from 'lucide-react'
+import { MessageSquare, Mic, MicOff, Volume2, VolumeX, Send, ChevronDown } from 'lucide-react'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
 
 interface Message {
@@ -7,10 +7,21 @@ interface Message {
   content: string
 }
 
+interface ISpeechRecognition extends EventTarget {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  start(): void
+  stop(): void
+  onresult: ((e: SpeechRecognitionEvent) => void) | null
+  onend: (() => void) | null
+  onerror: (() => void) | null
+}
+
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition
-    webkitSpeechRecognition: typeof SpeechRecognition
+    SpeechRecognition: new () => ISpeechRecognition
+    webkitSpeechRecognition: new () => ISpeechRecognition
   }
 }
 
@@ -25,7 +36,7 @@ export function ChatWidget() {
   const [ttsEnabled, setTtsEnabled] = useState(false)
   const [listening, setListening] = useState(false)
   const [unread, setUnread] = useState(0)
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const recognitionRef = useRef<ISpeechRecognition | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -40,11 +51,11 @@ export function ChatWidget() {
   function initRecognition() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) return null
-    const r = new SR()
+    const r: ISpeechRecognition = new SR()
     r.continuous = false
     r.interimResults = false
     r.lang = 'en-US'
-    r.onresult = (e) => {
+    r.onresult = (e: SpeechRecognitionEvent) => {
       const t = e.results[0][0].transcript
       setInput(prev => (prev ? prev + ' ' : '') + t)
     }
