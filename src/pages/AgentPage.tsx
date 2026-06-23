@@ -639,7 +639,9 @@ function RunAgentButton({ functionName, label = 'RUN AGENT', body = {} }: { func
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify(body),
       })
-      const data = await res.json()
+      const rawText = await res.text()
+      let data: Record<string, unknown> = {}
+      try { data = JSON.parse(rawText) } catch { data = { error: `Server error (HTTP ${res.status})` } }
       if (res.ok && data.success) {
         const drafted = data.drafted ?? data.briefing_created ? 1 : 0
         setResult({ ok: true, msg: data.message ?? `Done — ${drafted} item${drafted !== 1 ? 's' : ''} drafted` })
