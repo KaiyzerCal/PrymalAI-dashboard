@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from 'react'
+import { useState, useEffect, type ReactNode, type FormEvent } from 'react'
 import { useClient } from '@/hooks/useClient'
 import { CheckCircle, Globe, ChevronDown, CreditCard, Zap, Mail, Calendar, HardDrive, Edit2 } from 'lucide-react'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
@@ -112,7 +112,7 @@ export function IntegrationsPage() {
     load()
   }, [])
 
-  async function handleSave(e: React.FormEvent) {
+  async function handleSave(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
     await update(form)
@@ -149,7 +149,7 @@ export function IntegrationsPage() {
     setRediscovering(false)
   }
 
-  async function handleManualConnect(e: React.FormEvent) {
+  async function handleManualConnect(e: FormEvent) {
     e.preventDefault()
     setManualSaving(true)
     setManualMsg(null)
@@ -557,7 +557,74 @@ export function IntegrationsPage() {
         </div>
       )}
 
+      {tab === 'brand' && <PasswordChangeSection />}
+
       {tab === 'billing' && <BillingTab client={client} />}
+    </div>
+  )
+}
+
+function PasswordChangeSection() {
+  const [newPassword, setNewPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  async function handleChange(e: FormEvent) {
+    e.preventDefault()
+    if (newPassword !== confirm) { setMsg({ text: 'Passwords do not match.', ok: false }); return }
+    if (newPassword.length < 8) { setMsg({ text: 'Password must be at least 8 characters.', ok: false }); return }
+    setLoading(true)
+    setMsg(null)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setMsg(error ? { text: error.message, ok: false } : { text: 'Password updated successfully.', ok: true })
+    if (!error) { setNewPassword(''); setConfirm('') }
+    setLoading(false)
+  }
+
+  return (
+    <div
+      className="rounded-xl p-5 mt-4"
+      style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.1)' }}
+    >
+      <h3 className="text-xs font-semibold tracking-widest mb-4" style={{ color: 'rgba(0,212,255,0.5)' }}>CHANGE PASSWORD</h3>
+      <form onSubmit={handleChange} className="flex flex-col gap-3 max-w-sm">
+        <input
+          type="password"
+          required
+          placeholder="New password"
+          value={newPassword}
+          onChange={e => setNewPassword(e.target.value)}
+          className="rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none transition-all"
+          style={{ background: 'rgba(0,212,255,0.03)', border: '1px solid rgba(0,212,255,0.1)' }}
+          onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.3)' }}
+          onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.1)' }}
+        />
+        <input
+          type="password"
+          required
+          placeholder="Confirm new password"
+          value={confirm}
+          onChange={e => setConfirm(e.target.value)}
+          className="rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none transition-all"
+          style={{ background: 'rgba(0,212,255,0.03)', border: '1px solid rgba(0,212,255,0.1)' }}
+          onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.3)' }}
+          onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.1)' }}
+        />
+        {msg && <p className={`text-xs ${msg.ok ? 'text-green-400' : 'text-red-400'}`}>{msg.text}</p>}
+        <button
+          type="submit"
+          disabled={loading}
+          className="self-start py-2 px-5 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+          style={{
+            background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+            border: '1px solid rgba(0,212,255,0.35)',
+            color: '#00d4ff',
+          }}
+        >
+          {loading ? 'UPDATING…' : 'UPDATE PASSWORD'}
+        </button>
+      </form>
     </div>
   )
 }
