@@ -5,30 +5,119 @@ import { useClient } from '@/hooks/useClient'
 import { AGENTS } from '@/lib/agents'
 import { ChevronRight, Clock, Activity } from 'lucide-react'
 
+interface AgentStats {
+  google: { reviews: number; pending: number }
+  brand: { posts: number; scheduled: number }
+  outreach: { leads: number; newLeads: number }
+  service: { inquiries: number; newInquiries: number }
+  booking: { appointments: number; upcoming: number }
+  intel: { briefings: number }
+}
+
 export function DashboardPage() {
   const { client } = useClient()
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({})
+  const [stats, setStats] = useState<Partial<AgentStats>>({})
   const [countsLoading, setCountsLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from('prymal_approval_queue')
-        .select('agent')
-        .eq('status', 'pending')
-      if (data) {
-        const counts: Record<string, number> = {}
-        for (const row of data) {
-          counts[row.agent] = (counts[row.agent] ?? 0) + 1
-        }
-        setPendingCounts(counts)
+      const now = new Date().toISOString()
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+      const [
+        pendingRes,
+        reviewsRes,
+        postsRes,
+        leadsRes,
+        inquiriesRes,
+        apptRes,
+        briefingsRes,
+      ] = await Promise.all([
+        supabase.from('prymal_approval_queue').select('agent').eq('status', 'pending'),
+        supabase.from('prymal_gmb_reviews').select('response_status'),
+        supabase.from('prymal_social_posts').select('status'),
+        supabase.from('prymal_leads').select('status, created_at'),
+        supabase.from('prymal_inquiries').select('status'),
+        supabase.from('prymal_appointments').select('status, requested_date, confirmed_date'),
+        supabase.from('prymal_intel_briefings').select('id'),
+      ])
+
+      // pending counts per agent
+      const counts: Record<string, number> = {}
+      for (const row of pendingRes.data ?? []) {
+        counts[row.agent] = (counts[row.agent] ?? 0) + 1
       }
+      setPendingCounts(counts)
+
+      // per-agent stats
+      const reviews = reviewsRes.data ?? []
+      const posts = postsRes.data ?? []
+      const leads = leadsRes.data ?? []
+      const inquiries = inquiriesRes.data ?? []
+      const appts = apptRes.data ?? []
+
+      setStats({
+        google: {
+          reviews: reviews.length,
+          pending: reviews.filter(r => r.response_status === 'pending').length,
+        },
+        brand: {
+          posts: posts.length,
+          scheduled: posts.filter(p => p.status === 'scheduled').length,
+        },
+        outreach: {
+          leads: leads.length,
+          newLeads: leads.filter(l => l.status === 'new' && l.created_at > weekAgo).length,
+        },
+        service: {
+          inquiries: inquiries.length,
+          newInquiries: inquiries.filter(i => i.status === 'new').length,
+        },
+        booking: {
+          appointments: appts.length,
+          upcoming: appts.filter(a => {
+            const d = a.confirmed_date ?? a.requested_date
+            return d && d > now && a.status !== 'cancelled'
+          }).length,
+        },
+        intel: {
+          briefings: briefingsRes.data?.length ?? 0,
+        },
+      })
+
       setCountsLoading(false)
     }
     load()
   }, [])
 
   const totalPending = Object.values(pendingCounts).reduce((a, b) => a + b, 0)
+
+  function agentStat(id: string): string | null {
+    const s = stats as AgentStats
+    if (!s[id as keyof AgentStats]) return null
+    switch (id) {
+      case 'google': return s.google.reviews > 0
+        ? `${s.google.reviews} review${s.google.reviews !== 1 ? 's' : ''} · ${s.google.pending} awaiting response`
+        : null
+      case 'brand': return s.brand.posts > 0
+        ? `${s.brand.posts} post${s.brand.posts !== 1 ? 's' : ''} · ${s.brand.scheduled} scheduled`
+        : null
+      case 'outreach': return s.outreach.leads > 0
+        ? `${s.outreach.leads} lead${s.outreach.leads !== 1 ? 's' : ''} · ${s.outreach.newLeads} new this week`
+        : null
+      case 'service': return s.service.inquiries > 0
+        ? `${s.service.inquiries} inquir${s.service.inquiries !== 1 ? 'ies' : 'y'} · ${s.service.newInquiries} open`
+        : null
+      case 'booking': return s.booking.appointments > 0
+        ? `${s.booking.appointments} total · ${s.booking.upcoming} upcoming`
+        : null
+      case 'intel': return s.intel.briefings > 0
+        ? `${s.intel.briefings} briefing${s.intel.briefings !== 1 ? 's' : ''} generated`
+        : null
+      default: return null
+    }
+  }
 
   return (
     <div className="p-6 max-w-5xl relative">
@@ -111,6 +200,7 @@ export function DashboardPage() {
         {AGENTS.map(agent => {
           const pending = pendingCounts[agent.id] ?? 0
           const Icon = agent.icon
+          const stat = agentStat(agent.id)
 
           return (
             <Link
@@ -167,6 +257,16 @@ export function DashboardPage() {
                 </p>
               </div>
 
+              {/* Live stat */}
+              {!countsLoading && stat && (
+                <div
+                  className="rounded-lg px-3 py-2 text-xs"
+                  style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.08)', color: 'rgba(255,255,255,0.45)' }}
+                >
+                  {stat}
+                </div>
+              )}
+
               {/* Footer */}
               <div
                 className="flex items-center justify-between pt-3"
@@ -182,7 +282,7 @@ export function DashboardPage() {
                   </span>
                 ) : (
                   <span className="text-xs tracking-widest" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                    NO PENDING ITEMS
+                    {countsLoading ? '—' : 'NO PENDING ITEMS'}
                   </span>
                 )}
                 <ChevronRight
