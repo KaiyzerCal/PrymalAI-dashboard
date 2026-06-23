@@ -18,14 +18,14 @@ function planAtLeast(clientPlan: string, required: string) {
   return (PLAN_RANK[clientPlan] ?? 0) >= (PLAN_RANK[required] ?? 99)
 }
 
-const SYSTEM_PROMPT = `You are Prymal — an autonomous AI Google Agent managing a client's full Google presence.
+const SYSTEM_PROMPT = `You are Prymal — an autonomous AI Google Agent managing a client's full Google workspace and online presence.
 
-You have access to the client's Google Business Profile, Gmail, Google Calendar, and Google Drive — depending on their plan and which services they've connected.
+You have access to Gmail, Google Calendar, Google Drive, and Google Business Profile — depending on their plan and which services they've connected.
 
 CAPABILITIES BY PLAN:
-- Starter: Google Business Profile (reviews, responses)
-- Pro: + Gmail (read, draft, send) + Google Calendar (events, bookings, availability)
-- Agency: + Google Drive (read docs, generate reports)
+- Starter ($97/mo): Gmail (read, draft, send) + Google Calendar (events, availability) + Google Drive (search, read files)
+- Pro ($197/mo): + Google Business Profile (review monitoring, AI responses)
+- Agency ($397/mo): + multi-client management + white-label + priority support
 
 RULES — never break these:
 1. Never post, send, or create anything externally without going through queue_action first. The client approves everything in the dashboard before it goes out.
@@ -129,10 +129,10 @@ const TOOLS: Anthropic.Tool[] = [
     }
   },
 
-  // ── Starter+ : GBP ──
+  // ── Pro+ : GBP ──
   {
     name: 'get_reviews',
-    description: '[Starter+] Fetch reviews from Google Business Profile. Returns reviewer, rating, comment, and whether a reply exists.',
+    description: '[Pro+] Fetch reviews from Google Business Profile. Returns reviewer, rating, comment, and whether a reply exists.',
     input_schema: {
       type: 'object',
       properties: {
@@ -142,10 +142,10 @@ const TOOLS: Anthropic.Tool[] = [
     }
   },
 
-  // ── Pro+ : Gmail ──
+  // ── Starter+ : Gmail ──
   {
     name: 'get_emails',
-    description: '[Pro+] Search and list Gmail messages. Use to find unanswered inquiries, leads, or any email thread.',
+    description: '[Starter+] Search and list Gmail messages. Use to find unanswered inquiries, leads, or any email thread.',
     input_schema: {
       type: 'object',
       properties: {
@@ -156,7 +156,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_email_thread',
-    description: '[Pro+] Get the full content of an email thread by thread ID.',
+    description: '[Starter+] Get the full content of an email thread by thread ID.',
     input_schema: {
       type: 'object',
       properties: {
@@ -166,10 +166,10 @@ const TOOLS: Anthropic.Tool[] = [
     }
   },
 
-  // ── Pro+ : Calendar ──
+  // ── Starter+ : Calendar ──
   {
     name: 'get_calendar_events',
-    description: '[Pro+] List upcoming Google Calendar events.',
+    description: '[Starter+] List upcoming Google Calendar events.',
     input_schema: {
       type: 'object',
       properties: {
@@ -181,7 +181,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_availability',
-    description: '[Pro+] Check free/busy slots on Google Calendar for a given time range.',
+    description: '[Starter+] Check free/busy slots on Google Calendar for a given time range.',
     input_schema: {
       type: 'object',
       properties: {
@@ -192,10 +192,10 @@ const TOOLS: Anthropic.Tool[] = [
     }
   },
 
-  // ── Agency+ : Drive ──
+  // ── Starter+ : Drive ──
   {
     name: 'search_drive_files',
-    description: '[Agency] Search Google Drive for files by name or content.',
+    description: '[Starter+] Search Google Drive for files by name or content.',
     input_schema: {
       type: 'object',
       properties: {
@@ -206,7 +206,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'read_drive_file',
-    description: '[Agency] Read the text content of a Google Drive document.',
+    description: '[Starter+] Read the text content of a Google Drive document.',
     input_schema: {
       type: 'object',
       properties: {
@@ -310,10 +310,10 @@ async function handleTool(
       return { updated: true, fields: Object.keys(updates) }
     }
 
-    // ── Starter+ : GBP ──
+    // ── Pro+ : GBP ──
 
     case 'get_reviews': {
-      requirePlan('starter', 'Google Business Profile reviews')
+      requirePlan('pro', 'Google Business Profile reviews')
       const token = await getFreshToken(supabase, clientId, 'google')
       if (!token) return { error: 'Google Business Profile not connected. Go to Settings → Integrations → Google Business Profile to connect.' }
 
@@ -351,10 +351,10 @@ async function handleTool(
       return { totalReviewCount: data.totalReviewCount ?? reviews.length, reviews }
     }
 
-    // ── Pro+ : Gmail ──
+    // ── Starter+ : Gmail ──
 
     case 'get_emails': {
-      requirePlan('pro', 'Gmail')
+      requirePlan('starter', 'Gmail')
       const token = await getFreshToken(supabase, clientId, 'gmail')
       if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
 
@@ -394,7 +394,7 @@ async function handleTool(
     }
 
     case 'get_email_thread': {
-      requirePlan('pro', 'Gmail')
+      requirePlan('starter', 'Gmail')
       const token = await getFreshToken(supabase, clientId, 'gmail')
       if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
 
@@ -430,10 +430,10 @@ async function handleTool(
       return { threadId: input.threadId, messages }
     }
 
-    // ── Pro+ : Calendar ──
+    // ── Starter+ : Calendar ──
 
     case 'get_calendar_events': {
-      requirePlan('pro', 'Google Calendar')
+      requirePlan('starter', 'Google Calendar')
       const token = await getFreshToken(supabase, clientId, 'calendar')
       if (!token) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
 
@@ -467,7 +467,7 @@ async function handleTool(
     }
 
     case 'get_availability': {
-      requirePlan('pro', 'Google Calendar')
+      requirePlan('starter', 'Google Calendar')
       const token = await getFreshToken(supabase, clientId, 'calendar')
       if (!token) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
 
@@ -493,10 +493,10 @@ async function handleTool(
       }
     }
 
-    // ── Agency+ : Drive ──
+    // ── Starter+ : Drive ──
 
     case 'search_drive_files': {
-      requirePlan('agency', 'Google Drive')
+      requirePlan('starter', 'Google Drive')
       const token = await getFreshToken(supabase, clientId, 'drive')
       if (!token) return { error: 'Google Drive not connected. Go to Settings → Integrations → Google Drive to connect.' }
 
@@ -515,7 +515,7 @@ async function handleTool(
     }
 
     case 'read_drive_file': {
-      requirePlan('agency', 'Google Drive')
+      requirePlan('starter', 'Google Drive')
       const token = await getFreshToken(supabase, clientId, 'drive')
       if (!token) return { error: 'Google Drive not connected. Go to Settings → Integrations → Google Drive to connect.' }
 
