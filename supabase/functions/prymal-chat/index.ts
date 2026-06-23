@@ -12,33 +12,47 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const SYSTEM_PROMPT = `You are Prymal — an autonomous AI operations system for the Google Agent.
+// Plan hierarchy
+const PLAN_RANK: Record<string, number> = { trial: 0, starter: 1, pro: 2, agency: 3 }
+function planAtLeast(clientPlan: string, required: string) {
+  return (PLAN_RANK[clientPlan] ?? 0) >= (PLAN_RANK[required] ?? 99)
+}
 
-The Google Agent monitors Google Business Profile reviews and drafts AI-powered responses that match the client's brand voice. All responses are queued for client approval before anything is posted.
+const SYSTEM_PROMPT = `You are Prymal — an autonomous AI Google Agent managing a client's full Google presence.
+
+You have access to the client's Google Business Profile, Gmail, Google Calendar, and Google Drive — depending on their plan and which services they've connected.
+
+CAPABILITIES BY PLAN:
+- Starter: Google Business Profile (reviews, responses)
+- Pro: + Gmail (read, draft, send) + Google Calendar (events, bookings, availability)
+- Agency: + Google Drive (read docs, generate reports)
 
 RULES — never break these:
-1. Any action that posts or sends something externally must go through queue_action first. The client reviews and approves it in the dashboard.
-2. Reading reviews is always safe — do it freely.
-3. When you queue a response, tell the client it's waiting in the Google Agent tab of the dashboard.
-4. Write responses that match the client's brand tone from their profile. If brand tone is not set, ask before drafting.
-5. Be specific — tell the client exactly what you found, what you drafted, and why.`
+1. Never post, send, or create anything externally without going through queue_action first. The client approves everything in the dashboard before it goes out.
+2. Reading data (reviews, emails, events, files) is always safe — do it freely.
+3. If a client asks for a feature their plan doesn't include, tell them clearly which plan unlocks it and what it does.
+4. If a Google service isn't connected yet, tell the client to go to Settings → Integrations to connect it.
+5. Match the client's brand tone when drafting any content. If brand tone isn't set, ask first.
+6. Be specific — tell the client exactly what you found, what you drafted, and why.`
 
-async function getFreshGBPToken(
+// ── Token management ──────────────────────────────────────────────────────────
+
+async function getFreshToken(
   supabase: ReturnType<typeof createClient>,
-  clientId: string
+  clientId: string,
+  platform: string
 ): Promise<string | null> {
   const { data } = await supabase
     .from('prymal_oauth_tokens')
     .select('access_token, refresh_token, expires_at')
     .eq('client_id', clientId)
-    .eq('platform', 'google')
+    .eq('platform', platform)
     .single()
 
   if (!data) return null
 
   const expiresAt = data.expires_at ? new Date(data.expires_at).getTime() : 0
   if (Date.now() < expiresAt - 60000) return data.access_token
-
   if (!data.refresh_token) return null
 
   const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -57,36 +71,33 @@ async function getFreshGBPToken(
   await supabase.from('prymal_oauth_tokens').update({
     access_token: tokens.access_token,
     expires_at: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString(),
-  }).eq('client_id', clientId).eq('platform', 'google')
+  }).eq('client_id', clientId).eq('platform', platform)
 
   return tokens.access_token
 }
 
+// ── Tool definitions ──────────────────────────────────────────────────────────
+
 const TOOLS: Anthropic.Tool[] = [
+  // ── All plans ──
   {
     name: 'get_client_info',
-    description: 'Get the client profile including business name, brand tone, knowledge base, and GBP location IDs.',
+    description: 'Get the client profile: business name, plan, brand tone, knowledge base, GBP IDs, and which Google services are connected.',
     input_schema: { type: 'object', properties: {} }
   },
   {
-    name: 'get_reviews',
-    description: 'Fetch reviews from Google Business Profile. Requires Google to be connected. Returns reviewer name, rating, text, and reply status.',
+    name: 'get_pending_approvals',
+    description: 'Get all actions queued for client approval, optionally filtered by type.',
     input_schema: {
       type: 'object',
       properties: {
-        pageSize: { type: 'number', description: 'Number of reviews to fetch (max 50)', default: 20 },
-        orderBy: { type: 'string', description: 'Sort order: "updateTime desc" (newest first) or "rating" (lowest first)', default: 'updateTime desc' }
+        action_type: { type: 'string', description: 'Filter by type: respond_to_review, send_email, create_event, drive_report. Omit for all.' }
       }
     }
   },
   {
-    name: 'get_pending_approvals',
-    description: 'Get queued review responses waiting for client approval in the dashboard.',
-    input_schema: { type: 'object', properties: {} }
-  },
-  {
     name: 'get_agent_activity',
-    description: 'Get history of approved or rejected review responses.',
+    description: 'Get history of approved or rejected actions.',
     input_schema: {
       type: 'object',
       properties: { limit: { type: 'number', default: 10 } }
@@ -94,15 +105,16 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'queue_action',
-    description: 'Queue a drafted review response for client approval. The client sees and approves it in the Google Agent tab before it is posted.',
+    description: 'Queue any action for client approval before it goes external. Always use this before sending, posting, or creating anything.',
     input_schema: {
       type: 'object',
       properties: {
-        summary: { type: 'string', description: 'Short title shown on the approval card, e.g. "Response to 5-star review from John D."' },
-        draft_content: { type: 'string', description: 'The full review response the client will review and approve' },
-        review_id: { type: 'string', description: 'The GBP review ID this response is for' }
+        action_type: { type: 'string', description: 'e.g. respond_to_review, send_email, create_event, drive_report' },
+        summary: { type: 'string', description: 'Short title for the approval card' },
+        draft_content: { type: 'string', description: 'Full content the client will review' },
+        metadata: { type: 'object', description: 'Extra context: review_id, recipient email, event details, etc.' }
       },
-      required: ['summary', 'draft_content']
+      required: ['action_type', 'summary', 'draft_content']
     }
   },
   {
@@ -116,15 +128,115 @@ const TOOLS: Anthropic.Tool[] = [
       }
     }
   },
+
+  // ── Starter+ : GBP ──
+  {
+    name: 'get_reviews',
+    description: '[Starter+] Fetch reviews from Google Business Profile. Returns reviewer, rating, comment, and whether a reply exists.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        pageSize: { type: 'number', default: 20, description: 'Number of reviews (max 50)' },
+        orderBy: { type: 'string', default: 'updateTime desc', description: '"updateTime desc" (newest) or "rating" (lowest first)' }
+      }
+    }
+  },
+
+  // ── Pro+ : Gmail ──
+  {
+    name: 'get_emails',
+    description: '[Pro+] Search and list Gmail messages. Use to find unanswered inquiries, leads, or any email thread.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Gmail search query, e.g. "is:unread", "from:customer@example.com", "subject:invoice"' },
+        maxResults: { type: 'number', default: 10, description: 'Number of emails to return (max 50)' }
+      }
+    }
+  },
+  {
+    name: 'get_email_thread',
+    description: '[Pro+] Get the full content of an email thread by thread ID.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        threadId: { type: 'string', description: 'Gmail thread ID' }
+      },
+      required: ['threadId']
+    }
+  },
+
+  // ── Pro+ : Calendar ──
+  {
+    name: 'get_calendar_events',
+    description: '[Pro+] List upcoming Google Calendar events.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        timeMin: { type: 'string', description: 'Start of range in ISO 8601. Defaults to now.' },
+        timeMax: { type: 'string', description: 'End of range in ISO 8601. Defaults to 7 days from now.' },
+        maxResults: { type: 'number', default: 20 }
+      }
+    }
+  },
+  {
+    name: 'get_availability',
+    description: '[Pro+] Check free/busy slots on Google Calendar for a given time range.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        timeMin: { type: 'string', description: 'Start of range ISO 8601' },
+        timeMax: { type: 'string', description: 'End of range ISO 8601' }
+      },
+      required: ['timeMin', 'timeMax']
+    }
+  },
+
+  // ── Agency+ : Drive ──
+  {
+    name: 'search_drive_files',
+    description: '[Agency] Search Google Drive for files by name or content.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Drive search query, e.g. "name contains \'report\'" or "mimeType=\'application/pdf\'"' },
+        maxResults: { type: 'number', default: 10 }
+      }
+    }
+  },
+  {
+    name: 'read_drive_file',
+    description: '[Agency] Read the text content of a Google Drive document.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fileId: { type: 'string', description: 'Google Drive file ID' }
+      },
+      required: ['fileId']
+    }
+  },
 ]
+
+// ── Tool handlers ─────────────────────────────────────────────────────────────
 
 async function handleTool(
   toolName: string,
   input: Record<string, unknown>,
   supabase: ReturnType<typeof createClient>,
-  clientId: string
+  clientId: string,
+  clientPlan: string
 ): Promise<unknown> {
+
+  // Plan gate helper
+  function requirePlan(plan: string, feature: string) {
+    if (!planAtLeast(clientPlan, plan)) {
+      throw new Error(`${feature} requires the ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan. Your current plan is ${clientPlan}. Upgrade in Settings → Billing.`)
+    }
+  }
+
   switch (toolName) {
+
+    // ── Shared ──
 
     case 'get_client_info': {
       const { data, error } = await supabase
@@ -133,56 +245,18 @@ async function handleTool(
         .eq('id', clientId)
         .single()
       if (error) throw new Error(error.message)
-      const { data: tokenRow } = await supabase
+
+      const { data: tokens } = await supabase
         .from('prymal_oauth_tokens')
         .select('platform')
         .eq('client_id', clientId)
-        .eq('platform', 'google')
-        .maybeSingle()
-      return { ...data, google_connected: !!tokenRow }
-    }
+      const connected = (tokens ?? []).map((t: { platform: string }) => t.platform)
 
-    case 'get_reviews': {
-      const token = await getFreshGBPToken(supabase, clientId)
-      if (!token) return { error: 'Google Business Profile not connected. Ask the client to connect Google in Settings → Integrations.' }
-
-      const { data: clientData } = await supabase
-        .from('prymal_clients')
-        .select('gbp_location_id')
-        .eq('id', clientId)
-        .single()
-
-      if (!clientData?.gbp_location_id || clientData.gbp_location_id === '0') {
-        return { error: 'GBP location ID not configured. Ask the client to set it in Settings → Integrations → Google Business Profile.' }
-      }
-
-      const pageSize = (input.pageSize as number) ?? 20
-      const orderBy = (input.orderBy as string) ?? 'updateTime desc'
-      const params = new URLSearchParams({ pageSize: String(pageSize), orderBy })
-
-      const res = await fetch(
-        `https://mybusinessreviews.googleapis.com/v1/${clientData.gbp_location_id}/reviews?${params}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-      const data = await res.json()
-      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
-
-      const reviews = (data.reviews ?? []).map((r: Record<string, unknown>) => ({
-        reviewId: r.reviewId,
-        reviewer: (r.reviewer as Record<string, unknown>)?.displayName ?? 'Anonymous',
-        starRating: r.starRating,
-        comment: r.comment ?? '(no comment)',
-        createTime: r.createTime,
-        updateTime: r.updateTime,
-        hasReply: !!(r.reviewReply),
-        replyText: (r.reviewReply as Record<string, unknown>)?.comment ?? null,
-      }))
-
-      return { totalReviewCount: data.totalReviewCount ?? reviews.length, reviews }
+      return { ...data, connected_services: connected }
     }
 
     case 'get_pending_approvals': {
-      const { data, error } = await supabase
+      let query = supabase
         .from('prymal_approval_queue')
         .select('*')
         .eq('client_id', clientId)
@@ -190,6 +264,8 @@ async function handleTool(
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(20)
+      if (input.action_type) query = query.eq('action_type', input.action_type as string)
+      const { data, error } = await query
       if (error) throw new Error(error.message)
       return { count: data?.length ?? 0, items: data ?? [] }
     }
@@ -213,16 +289,16 @@ async function handleTool(
         .insert({
           client_id: clientId,
           agent: 'google',
-          action_type: 'respond_to_review',
+          action_type: input.action_type,
           summary: input.summary,
           draft_content: input.draft_content,
           status: 'pending',
-          ...(input.review_id ? { metadata: { review_id: input.review_id } } : {}),
+          ...(input.metadata ? { reference_id: null } : {}),
         })
         .select('id')
         .single()
       if (error) throw new Error(error.message)
-      return { queued: true, id: data?.id, message: 'Response queued — visible in the Google Agent tab of the dashboard for approval.' }
+      return { queued: true, id: data?.id, message: 'Action queued — visible in the Google Agent tab for your approval.' }
     }
 
     case 'update_client_info': {
@@ -234,10 +310,247 @@ async function handleTool(
       return { updated: true, fields: Object.keys(updates) }
     }
 
+    // ── Starter+ : GBP ──
+
+    case 'get_reviews': {
+      requirePlan('starter', 'Google Business Profile reviews')
+      const token = await getFreshToken(supabase, clientId, 'google')
+      if (!token) return { error: 'Google Business Profile not connected. Go to Settings → Integrations → Google Business Profile to connect.' }
+
+      const { data: clientData } = await supabase
+        .from('prymal_clients')
+        .select('gbp_location_id')
+        .eq('id', clientId)
+        .single()
+
+      if (!clientData?.gbp_location_id || clientData.gbp_location_id === '0') {
+        return { error: 'GBP location ID not configured. Go to Settings → Integrations → Google Business Profile.' }
+      }
+
+      const params = new URLSearchParams({
+        pageSize: String((input.pageSize as number) ?? 20),
+        orderBy: (input.orderBy as string) ?? 'updateTime desc',
+      })
+      const res = await fetch(
+        `https://mybusinessreviews.googleapis.com/v1/${clientData.gbp_location_id}/reviews?${params}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+
+      const reviews = (data.reviews ?? []).map((r: Record<string, unknown>) => ({
+        reviewId: r.reviewId,
+        reviewer: (r.reviewer as Record<string, unknown>)?.displayName ?? 'Anonymous',
+        starRating: r.starRating,
+        comment: r.comment ?? '(no comment)',
+        createTime: r.createTime,
+        updateTime: r.updateTime,
+        hasReply: !!(r.reviewReply),
+        replyText: (r.reviewReply as Record<string, unknown>)?.comment ?? null,
+      }))
+      return { totalReviewCount: data.totalReviewCount ?? reviews.length, reviews }
+    }
+
+    // ── Pro+ : Gmail ──
+
+    case 'get_emails': {
+      requirePlan('pro', 'Gmail')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      const params = new URLSearchParams({
+        q: (input.query as string) ?? '',
+        maxResults: String((input.maxResults as number) ?? 10),
+      })
+      const res = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+      if (!data.messages?.length) return { count: 0, emails: [], message: 'No emails matched that query.' }
+
+      // Fetch snippets for each message
+      const emails = await Promise.all(
+        (data.messages ?? []).slice(0, 10).map(async (m: { id: string; threadId: string }) => {
+          const msgRes = await fetch(
+            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+          const msg = await msgRes.json()
+          const headers: Record<string, string> = {}
+          for (const h of msg.payload?.headers ?? []) headers[h.name] = h.value
+          return {
+            id: m.id,
+            threadId: m.threadId,
+            subject: headers['Subject'] ?? '(no subject)',
+            from: headers['From'] ?? '',
+            date: headers['Date'] ?? '',
+            snippet: msg.snippet ?? '',
+          }
+        })
+      )
+      return { count: data.resultSizeEstimate ?? emails.length, emails }
+    }
+
+    case 'get_email_thread': {
+      requirePlan('pro', 'Gmail')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      const res = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/threads/${input.threadId}?format=full`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+
+      const messages = (data.messages ?? []).map((m: Record<string, unknown>) => {
+        const headers: Record<string, string> = {}
+        for (const h of (m.payload as Record<string, unknown[]>)?.headers ?? []) {
+          const hdr = h as Record<string, string>
+          headers[hdr.name] = hdr.value
+        }
+        // Decode body
+        let body = ''
+        const payload = m.payload as Record<string, unknown>
+        const parts = payload?.parts as Record<string, unknown>[] ?? []
+        const bodyData = parts.find(p => p.mimeType === 'text/plain') ?? payload
+        const encoded = (bodyData?.body as Record<string, string>)?.data ?? ''
+        if (encoded) {
+          try { body = atob(encoded.replace(/-/g, '+').replace(/_/g, '/')) } catch { body = '' }
+        }
+        return {
+          from: headers['From'] ?? '',
+          date: headers['Date'] ?? '',
+          subject: headers['Subject'] ?? '',
+          body: body.slice(0, 2000),
+        }
+      })
+      return { threadId: input.threadId, messages }
+    }
+
+    // ── Pro+ : Calendar ──
+
+    case 'get_calendar_events': {
+      requirePlan('pro', 'Google Calendar')
+      const token = await getFreshToken(supabase, clientId, 'calendar')
+      if (!token) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
+
+      const timeMin = (input.timeMin as string) ?? new Date().toISOString()
+      const timeMax = (input.timeMax as string) ?? new Date(Date.now() + 7 * 86400000).toISOString()
+      const params = new URLSearchParams({
+        timeMin,
+        timeMax,
+        maxResults: String((input.maxResults as number) ?? 20),
+        singleEvents: 'true',
+        orderBy: 'startTime',
+      })
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+
+      const events = (data.items ?? []).map((e: Record<string, unknown>) => ({
+        id: e.id,
+        summary: e.summary ?? '(no title)',
+        start: (e.start as Record<string, string>)?.dateTime ?? (e.start as Record<string, string>)?.date,
+        end: (e.end as Record<string, string>)?.dateTime ?? (e.end as Record<string, string>)?.date,
+        location: e.location ?? null,
+        description: (e.description as string)?.slice(0, 300) ?? null,
+        attendees: ((e.attendees as Record<string, string>[]) ?? []).map(a => a.email),
+        status: e.status,
+      }))
+      return { count: events.length, events }
+    }
+
+    case 'get_availability': {
+      requirePlan('pro', 'Google Calendar')
+      const token = await getFreshToken(supabase, clientId, 'calendar')
+      if (!token) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
+
+      const res = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          timeMin: input.timeMin,
+          timeMax: input.timeMax,
+          items: [{ id: 'primary' }],
+        }),
+      })
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+
+      const busy = data.calendars?.primary?.busy ?? []
+      return {
+        timeMin: input.timeMin,
+        timeMax: input.timeMax,
+        busy_slots: busy,
+        busy_count: busy.length,
+        message: busy.length === 0 ? 'Completely free during this period.' : `${busy.length} busy slot(s) found.`,
+      }
+    }
+
+    // ── Agency+ : Drive ──
+
+    case 'search_drive_files': {
+      requirePlan('agency', 'Google Drive')
+      const token = await getFreshToken(supabase, clientId, 'drive')
+      if (!token) return { error: 'Google Drive not connected. Go to Settings → Integrations → Google Drive to connect.' }
+
+      const params = new URLSearchParams({
+        q: (input.query as string) ?? '',
+        pageSize: String((input.maxResults as number) ?? 10),
+        fields: 'files(id,name,mimeType,modifiedTime,webViewLink)',
+      })
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files?${params}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+      return { count: data.files?.length ?? 0, files: data.files ?? [] }
+    }
+
+    case 'read_drive_file': {
+      requirePlan('agency', 'Google Drive')
+      const token = await getFreshToken(supabase, clientId, 'drive')
+      if (!token) return { error: 'Google Drive not connected. Go to Settings → Integrations → Google Drive to connect.' }
+
+      // Export Google Docs as plain text; download other files directly
+      const metaRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${input.fileId}?fields=name,mimeType`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const meta = await metaRes.json()
+      if (meta.error) return { error: meta.error.message }
+
+      let content = ''
+      if (meta.mimeType === 'application/vnd.google-apps.document') {
+        const exportRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${input.fileId}/export?mimeType=text/plain`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        content = await exportRes.text()
+      } else {
+        const downloadRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${input.fileId}?alt=media`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        content = await downloadRes.text()
+      }
+
+      return { fileId: input.fileId, name: meta.name, mimeType: meta.mimeType, content: content.slice(0, 8000) }
+    }
+
     default:
       throw new Error(`Unknown tool: ${toolName}`)
   }
 }
+
+// ── Main handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -255,17 +568,15 @@ Deno.serve(async (req) => {
 
     const { data: clientRow } = await supabase
       .from('prymal_clients')
-      .select('id, anthropic_api_key')
+      .select('id, anthropic_api_key, plan')
       .eq('user_id', user.id)
       .single()
 
-    if (!clientRow) {
-      return new Response(JSON.stringify({ error: 'Client not found.' }), { status: 404 })
-    }
+    if (!clientRow) return new Response(JSON.stringify({ error: 'Client not found.' }), { status: 404 })
 
     if (!clientRow.anthropic_api_key) {
       return new Response(
-        JSON.stringify({ reply: 'No Anthropic API key found. Add yours in Settings → Integrations → AI Engine to activate the chat.' }),
+        JSON.stringify({ reply: 'No Anthropic API key found. Add yours in Settings → Integrations → AI Engine to activate the Google Agent.' }),
         { headers: { 'Content-Type': 'application/json', ...CORS } }
       )
     }
@@ -285,7 +596,7 @@ Deno.serve(async (req) => {
     while (true) {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2048,
+        max_tokens: 4096,
         system: SYSTEM_PROMPT,
         tools: TOOLS,
         messages,
@@ -304,7 +615,7 @@ Deno.serve(async (req) => {
         for (const block of response.content) {
           if (block.type === 'tool_use') {
             try {
-              const result = await handleTool(block.name, block.input as Record<string, unknown>, supabase, clientRow.id)
+              const result = await handleTool(block.name, block.input as Record<string, unknown>, supabase, clientRow.id, clientRow.plan)
               toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) })
             } catch (err) {
               toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: `Error: ${(err as Error).message}`, is_error: true })
