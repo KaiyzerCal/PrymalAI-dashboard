@@ -121,8 +121,8 @@ export function IntegrationsPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const gbpConnected = !!(googleAccount?.connected && gbpIds.account && gbpIds.location && gbpIds.location !== '0' && gbpIds.account !== '0')
-  const gbpTokensOnly = !!(googleAccount?.connected && (!gbpIds.account || !gbpIds.location || gbpIds.location === '0' || gbpIds.account === '0'))
+  const gbpConnected = !!(googleAccount?.connected && gbpIds.account && gbpIds.account !== '0')
+  const gbpTokensOnly = !!(googleAccount?.connected && (!gbpIds.account || gbpIds.account === '0'))
   const [showManual, setShowManual] = useState(false)
   const [gbpEditing, setGbpEditing] = useState(false)
   const [manualForm, setManualForm] = useState({ accountId: gbpIds.account ?? '', locationId: gbpIds.location && gbpIds.location !== '0' ? gbpIds.location : '', businessName: '' })
@@ -162,13 +162,13 @@ export function IntegrationsPage() {
 
       await supabase.from('prymal_clients').update({
         gbp_account_id: manualForm.accountId.trim(),
-        gbp_location_id: manualForm.locationId.trim(),
+        gbp_location_id: manualForm.locationId.trim() || null,
       }).eq('id', clientRow.id)
 
       await supabase.from('prymal_social_accounts').upsert({
         client_id: clientRow.id,
         platform: 'google',
-        handle: manualForm.businessName.trim() || manualForm.locationId.trim(),
+        handle: manualForm.businessName.trim() || manualForm.accountId.trim(),
         connected: true,
       }, { onConflict: 'client_id,platform' })
 
@@ -241,7 +241,7 @@ export function IntegrationsPage() {
                   <div className="flex items-center gap-2">
                     <CheckCircle size={13} style={{ color: '#00d4ff' }} />
                     <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                      {googleAccount?.handle ?? 'Business Profile connected'} · {gbpIds.location}
+                      {googleAccount?.handle ?? 'Business Profile connected'}{gbpIds.location && gbpIds.location !== '0' ? ` · ${gbpIds.location}` : ''}
                     </span>
                   </div>
                   <button
@@ -259,7 +259,7 @@ export function IntegrationsPage() {
                     {[
                       { key: 'businessName', label: 'BUSINESS NAME', placeholder: 'Bioneer Fitness' },
                       { key: 'accountId', label: 'ACCOUNT ID', placeholder: 'accounts/123456789' },
-                      { key: 'locationId', label: 'LOCATION ID', placeholder: 'accounts/123456789/locations/987654321' },
+                      { key: 'locationId', label: 'LOCATION ID (optional — skip if online/service-area business)', placeholder: 'accounts/123456789/locations/987654321' },
                     ].map(({ key, label, placeholder }) => (
                       <div key={key}>
                         <label className="block text-xs font-semibold tracking-widest mb-1.5" style={{ color: 'rgba(0,212,255,0.45)' }}>{label}</label>
@@ -278,7 +278,7 @@ export function IntegrationsPage() {
                     {manualMsg && <p className={`text-xs ${manualMsg.ok ? 'text-green-400' : 'text-red-400'}`}>{manualMsg.text}</p>}
                     <button
                       type="submit"
-                      disabled={manualSaving || !manualForm.accountId || !manualForm.locationId}
+                      disabled={manualSaving || !manualForm.accountId}
                       className="py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
                       style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff' }}
                     >
@@ -292,7 +292,7 @@ export function IntegrationsPage() {
             {gbpTokensOnly && !acctLoading && (
               <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgba(251,191,36,0.1)' }}>
                 <p className="text-xs mb-3" style={{ color: 'rgba(251,191,36,0.7)' }}>
-                  OAuth authorized but your Business Profile location wasn't found automatically (GBP API quota issue). Try re-discovering or enter IDs manually.
+                  Google authorized but your Business Profile Account ID wasn't found automatically. Try re-discovering, or enter your Account ID manually below. Location ID is optional for online/service-area businesses.
                 </p>
                 <button
                   onClick={handleRediscover}
@@ -342,13 +342,13 @@ export function IntegrationsPage() {
                         <li>Click your business name to open it</li>
                         <li>Click the 3-dot menu → <strong className="text-white">Business Profile Settings</strong></li>
                         <li>Click <strong className="text-white">Advanced Settings</strong></li>
-                        <li>Copy the <strong className="text-white">Account ID</strong> and <strong className="text-white">Location ID</strong></li>
+                        <li>Copy the <strong className="text-white">Account ID</strong> (Location ID is optional for online/service-area businesses)</li>
                       </ol>
                     </div>
                     {[
                       { key: 'businessName', label: 'BUSINESS NAME', placeholder: 'Bioneer Fitness' },
                       { key: 'accountId', label: 'ACCOUNT ID', placeholder: 'accounts/123456789' },
-                      { key: 'locationId', label: 'LOCATION ID', placeholder: 'accounts/123456789/locations/987654321' },
+                      { key: 'locationId', label: 'LOCATION ID (optional — skip if online/service-area business)', placeholder: 'accounts/123456789/locations/987654321' },
                     ].map(({ key, label, placeholder }) => (
                       <div key={key}>
                         <label className="block text-xs font-semibold tracking-widest mb-1.5" style={{ color: 'rgba(0,212,255,0.45)' }}>{label}</label>
@@ -367,7 +367,7 @@ export function IntegrationsPage() {
                     {manualMsg && <p className={`text-xs ${manualMsg.ok ? 'text-green-400' : 'text-red-400'}`}>{manualMsg.text}</p>}
                     <button
                       type="submit"
-                      disabled={manualSaving || !manualForm.accountId || !manualForm.locationId}
+                      disabled={manualSaving || !manualForm.accountId}
                       className="py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
                       style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff' }}
                     >
