@@ -137,8 +137,10 @@ export function ChatWidget() {
         },
         body: JSON.stringify({ message: msg, history }),
       })
-      const data = await res.json()
-      const reply = data.reply ?? data.error ?? 'Something went wrong.'
+      const text = await res.text()
+      let data: Record<string, unknown> = {}
+      try { data = JSON.parse(text) } catch { data = { error: `Server error (HTTP ${res.status})` } }
+      const reply = (data.reply ?? data.error ?? 'Something went wrong.') as string
       const assistantMsg: Message = { role: 'assistant', content: reply }
       setMessages(prev => [...prev, assistantMsg])
       setHistory(prev => {
