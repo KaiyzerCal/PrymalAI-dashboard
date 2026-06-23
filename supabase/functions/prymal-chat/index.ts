@@ -293,7 +293,7 @@ async function handleTool(
           summary: input.summary,
           draft_content: input.draft_content,
           status: 'pending',
-          ...(input.metadata ? { reference_id: null } : {}),
+          metadata: input.metadata ?? null,
         })
         .select('id')
         .single()
