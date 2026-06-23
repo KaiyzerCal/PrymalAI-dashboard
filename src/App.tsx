@@ -13,6 +13,7 @@ import { GoogleCallbackPage } from '@/pages/GoogleCallbackPage'
 import { OnboardingPage } from '@/pages/OnboardingPage'
 import { AdminPage } from '@/pages/AdminPage'
 import { AdminClientPage } from '@/pages/AdminClientPage'
+import { LandingPage } from '@/pages/LandingPage'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -64,6 +65,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/landing" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
