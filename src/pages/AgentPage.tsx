@@ -269,14 +269,18 @@ function GoogleContent() {
     setSyncMsg(null)
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch(`${FUNCTION_BASE}/prymal-chat`, {
+      const res = await fetch(`${FUNCTION_BASE}/prymal-gbp-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ message: 'Please fetch all my Google Business Profile reviews from the GBP API and save them to the database so they show up in my dashboard.' }),
       })
       const data = await res.json()
-      setSyncMsg(data.reply ? 'Reviews synced — reload to see them.' : 'Sync failed.')
-      if (data.reply) setTimeout(() => window.location.reload(), 1500)
+      if (data.success) {
+        setSyncMsg(data.message ?? `Synced ${data.synced} reviews.`)
+        setTimeout(() => window.location.reload(), 1500)
+      } else {
+        setSyncMsg(data.error ?? 'Sync failed.')
+        if (data.tip) setSyncMsg(prev => `${prev} ${data.tip}`)
+      }
     } catch {
       setSyncMsg('Network error during sync.')
     }
