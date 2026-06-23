@@ -29,6 +29,7 @@ export function GoogleCallbackPage() {
         }
 
         const redirectUri = `${window.location.origin}/auth/google/callback`
+        const platform = params.get('state') ?? 'gbp'
 
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://josabyyaarhlgepfelid.supabase.co'
         const res = await fetch(
@@ -39,7 +40,7 @@ export function GoogleCallbackPage() {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${session.access_token}`,
             },
-            body: JSON.stringify({ code, redirect_uri: redirectUri }),
+            body: JSON.stringify({ code, redirect_uri: redirectUri, platform }),
           }
         )
 
@@ -53,7 +54,10 @@ export function GoogleCallbackPage() {
         }
 
         setStatus('success')
-        if (data.tokens_stored && !data.location) {
+        if (platform !== 'gbp') {
+          setMessage(`${platform.charAt(0).toUpperCase() + platform.slice(1)} connected successfully.`)
+          setTimeout(() => navigate('/settings'), 2500)
+        } else if (data.tokens_stored && !data.location) {
           setMessage('Tokens saved. Go to Settings → Integrations to enter your GBP IDs manually.')
           setTimeout(() => navigate('/settings'), 2500)
         } else {
