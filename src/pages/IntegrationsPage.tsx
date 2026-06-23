@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { useClient } from '@/hooks/useClient'
 import { CheckCircle, Globe, ChevronDown, CreditCard, Zap, Mail, Calendar, HardDrive, Edit2 } from 'lucide-react'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
@@ -571,13 +571,13 @@ function IntegrationCard({
   warning,
   children,
 }: {
-  icon: React.ReactNode
+  icon: ReactNode
   title: string
   subtitle: string
   loading: boolean
   connected: boolean
   warning?: boolean
-  children?: React.ReactNode
+  children?: ReactNode
 }) {
   return (
     <div
