@@ -70,7 +70,8 @@ Deno.serve(async (req: Request) => {
     if (!clientRow) return new Response(JSON.stringify({ error: 'Client not found' }), { status: 404 })
 
     const body = await req.json()
-    const { action, code, redirect_uri } = body
+    const { action, code, redirect_uri, platform = 'google' } = body
+    const oauthPlatform = platform === 'gbp' ? 'google' : platform
 
     // ── Re-discover location using stored refresh token ──
     if (action === 'rediscover') {
@@ -147,16 +148,25 @@ Deno.serve(async (req: Request) => {
 
     const expiresAt = new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString()
 
-    // Store tokens first (so connection is recorded even if location discovery fails)
+    // Store tokens with the correct platform name
     await admin.from('prymal_oauth_tokens').upsert({
       client_id: clientRow.id,
-      platform: 'google',
+      platform: oauthPlatform,
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
       expires_at: expiresAt,
     }, { onConflict: 'client_id,platform' })
 
-    // Try to discover location (may fail if GBP API quota=0)
+    // Non-GBP platforms (gmail, calendar, drive) — done after storing tokens
+    if (oauthPlatform !== 'google') {
+      return new Response(JSON.stringify({
+        success: true,
+        tokens_stored: true,
+        platform: oauthPlatform,
+      }), { headers: { 'Content-Type': 'application/json', ...CORS } })
+    }
+
+    // GBP — try to discover location (may fail if GBP API quota=0)
     const found = await discoverLocation(tokens.access_token).catch(() => null)
 
     if (found) {
