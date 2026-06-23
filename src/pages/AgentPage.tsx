@@ -1096,7 +1096,7 @@ export function AgentPage() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session?.access_token}`,
       },
-      body: JSON.stringify({ item_id: itemId, reply_text: reply }),
+      body: JSON.stringify({ approval_id: itemId, reply_text: reply }),
     })
     setPendingItems(prev => prev.filter(i => i.id !== itemId))
   }
