@@ -273,16 +273,22 @@ function GoogleContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
       })
-      const data = await res.json()
+      const text = await res.text()
+      let data: Record<string, unknown> = {}
+      try { data = JSON.parse(text) } catch {
+        setSyncMsg(`Sync error (HTTP ${res.status}): ${text.slice(0, 120)}`)
+        setSyncing(false)
+        return
+      }
       if (data.success) {
-        setSyncMsg(data.message ?? `Synced ${data.synced} reviews.`)
+        setSyncMsg(data.message as string ?? `Synced ${data.synced} reviews.`)
         setTimeout(() => window.location.reload(), 1500)
       } else {
-        setSyncMsg(data.error ?? 'Sync failed.')
-        if (data.tip) setSyncMsg(prev => `${prev} ${data.tip}`)
+        const msg = [data.error, data.tip].filter(Boolean).join(' — ')
+        setSyncMsg(msg as string || 'Sync failed — check your GBP connection in Settings.')
       }
-    } catch {
-      setSyncMsg('Network error during sync.')
+    } catch (err) {
+      setSyncMsg(`Network error: ${(err as Error).message}`)
     }
     setSyncing(false)
   }
