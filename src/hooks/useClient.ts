@@ -21,6 +21,8 @@ export interface PrymalClient {
   website: string | null
   industry: string | null
   onboarding_complete: boolean
+  anthropic_api_key: string | null
+  workspace_connected: boolean
   created_at: string
 }
 
