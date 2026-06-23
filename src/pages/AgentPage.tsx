@@ -644,9 +644,9 @@ function RunAgentButton({ functionName, label = 'RUN AGENT', body = {} }: { func
       try { data = JSON.parse(rawText) } catch { data = { error: `Server error (HTTP ${res.status})` } }
       if (res.ok && data.success) {
         const drafted = data.drafted ?? data.briefing_created ? 1 : 0
-        setResult({ ok: true, msg: data.message ?? `Done — ${drafted} item${drafted !== 1 ? 's' : ''} drafted` })
+        setResult({ ok: true, msg: (data.message as string) ?? `Done — ${drafted} item${drafted !== 1 ? 's' : ''} drafted` })
       } else {
-        setResult({ ok: false, msg: data.error ?? 'Failed' })
+        setResult({ ok: false, msg: (data.error as string) ?? 'Failed' })
       }
     } catch (err) {
       setResult({ ok: false, msg: String(err) })

@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { MessageSquare, Mic, MicOff, Volume2, VolumeX, Send, ChevronDown, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { MessageSquare, Mic, MicOff, Volume2, VolumeX, Send, ChevronDown, Trash2, Settings } from 'lucide-react'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
+
+function needsReconnect(text: string): boolean {
+  return /settings.*integrations|go to settings|not connected|reconnect/i.test(text)
+}
 
 interface Message {
   role: 'user' | 'assistant'
@@ -27,6 +32,7 @@ declare global {
 
 export function ChatWidget() {
   const INITIAL_MESSAGE: Message = { role: 'assistant', content: 'Hi — I\'m Prymal. Ask me anything about your agents, approvals, emails, or calendar. I can also take actions on your behalf.' }
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE])
   const [input, setInput] = useState('')
@@ -247,28 +253,41 @@ export function ChatWidget() {
 
           <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
             {messages.map((m, i) => (
-              <div
-                key={i}
-                className="max-w-[85%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed"
-                style={
-                  m.role === 'user'
-                    ? {
-                        alignSelf: 'flex-end',
-                        background: 'linear-gradient(135deg, rgba(0,212,255,0.22) 0%, rgba(0,212,255,0.1) 100%)',
-                        border: '1px solid rgba(0,212,255,0.3)',
-                        color: '#e0f7ff',
-                        borderBottomRightRadius: '4px',
-                      }
-                    : {
-                        alignSelf: 'flex-start',
-                        background: 'rgba(255,255,255,0.04)',
-                        border: '1px solid rgba(255,255,255,0.07)',
-                        color: 'rgba(255,255,255,0.85)',
-                        borderBottomLeftRadius: '4px',
-                      }
-                }
-              >
-                {m.content}
+              <div key={i} className="flex flex-col" style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+                <div
+                  className="px-3.5 py-2.5 rounded-xl text-sm leading-relaxed"
+                  style={
+                    m.role === 'user'
+                      ? {
+                          background: 'linear-gradient(135deg, rgba(0,212,255,0.22) 0%, rgba(0,212,255,0.1) 100%)',
+                          border: '1px solid rgba(0,212,255,0.3)',
+                          color: '#e0f7ff',
+                          borderBottomRightRadius: '4px',
+                        }
+                      : {
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '1px solid rgba(255,255,255,0.07)',
+                          color: 'rgba(255,255,255,0.85)',
+                          borderBottomLeftRadius: '4px',
+                        }
+                  }
+                >
+                  {m.content}
+                </div>
+                {m.role === 'assistant' && needsReconnect(m.content) && (
+                  <button
+                    onClick={() => { setOpen(false); navigate('/settings') }}
+                    className="mt-1.5 flex items-center gap-1.5 self-start text-xs font-semibold px-2.5 py-1 rounded-lg transition-all"
+                    style={{
+                      background: 'rgba(0,212,255,0.08)',
+                      border: '1px solid rgba(0,212,255,0.25)',
+                      color: '#00d4ff',
+                    }}
+                  >
+                    <Settings size={11} />
+                    Go to Integrations
+                  </button>
+                )}
               </div>
             ))}
             {loading && (

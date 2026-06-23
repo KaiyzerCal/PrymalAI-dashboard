@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useClient } from '@/hooks/useClient'
 import { AGENTS } from '@/lib/agents'
 import { ChevronRight, Clock, Activity } from 'lucide-react'
+import { SetupChecklist } from '@/components/SetupChecklist'
 
 interface AgentStats {
   google: { reviews: number; pending: number }
@@ -128,6 +129,8 @@ export function DashboardPage() {
           background: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0,212,255,0.07) 0%, transparent 70%)',
         }}
       />
+
+      <SetupChecklist />
 
       {/* Header */}
       <div className="relative mb-10">
