@@ -5,6 +5,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? ''
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -550,6 +551,141 @@ async function handleTool(
   }
 }
 
+// ── Gemini 2.0 Flash agentic loop ────────────────────────────────────────────
+
+type GeminiPart =
+  | { text: string }
+  | { functionCall: { name: string; args: Record<string, unknown> } }
+  | { functionResponse: { name: string; response: unknown } }
+
+async function runGeminiLoop(
+  apiKey: string,
+  history: { role: string; content: string }[],
+  message: string,
+  supabase: ReturnType<typeof createClient>,
+  clientId: string,
+  clientPlan: string
+): Promise<string> {
+  const functionDeclarations = TOOLS.map(t => ({
+    name: t.name,
+    description: t.description,
+    parameters: t.input_schema,
+  }))
+
+  // Build initial contents from plain-text history + new message
+  const contents: { role: string; parts: GeminiPart[] }[] = [
+    ...history.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }] as GeminiPart[],
+    })),
+    { role: 'user', parts: [{ text: message }] },
+  ]
+
+  for (let i = 0; i < 10; i++) {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents,
+          tools: [{ functionDeclarations }],
+          generationConfig: { maxOutputTokens: 4096 },
+        }),
+      }
+    )
+
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Gemini ${res.status}: ${body.slice(0, 200)}`)
+    }
+
+    const data = await res.json()
+    const parts: GeminiPart[] = data.candidates?.[0]?.content?.parts ?? []
+    const calls = parts.filter(
+      (p): p is { functionCall: { name: string; args: Record<string, unknown> } } => 'functionCall' in p
+    )
+
+    if (calls.length === 0) {
+      return parts
+        .filter((p): p is { text: string } => 'text' in p)
+        .map(p => p.text)
+        .join('')
+    }
+
+    // Push model turn + execute tools
+    contents.push({ role: 'model', parts })
+    const responses: GeminiPart[] = await Promise.all(
+      calls.map(async c => {
+        try {
+          const result = await handleTool(c.functionCall.name, c.functionCall.args, supabase, clientId, clientPlan)
+          return { functionResponse: { name: c.functionCall.name, response: { output: JSON.stringify(result) } } }
+        } catch (err) {
+          return { functionResponse: { name: c.functionCall.name, response: { error: (err as Error).message } } }
+        }
+      })
+    )
+    contents.push({ role: 'user', parts: responses })
+  }
+
+  throw new Error('Gemini loop exceeded max iterations')
+}
+
+// ── Claude Haiku fallback loop ────────────────────────────────────────────────
+
+async function runHaikuLoop(
+  apiKey: string,
+  history: { role: string; content: string }[],
+  message: string,
+  supabase: ReturnType<typeof createClient>,
+  clientId: string,
+  clientPlan: string
+): Promise<string> {
+  const anthropic = new Anthropic({ apiKey })
+  const messages: Anthropic.MessageParam[] = [
+    ...history.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    { role: 'user', content: message },
+  ]
+
+  while (true) {
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4096,
+      system: SYSTEM_PROMPT,
+      tools: TOOLS,
+      messages,
+    })
+
+    if (response.stop_reason === 'end_turn') {
+      return response.content
+        .filter(b => b.type === 'text')
+        .map(b => (b as Anthropic.TextBlock).text)
+        .join('')
+    }
+
+    if (response.stop_reason === 'tool_use') {
+      const toolResults: Anthropic.ToolResultBlockParam[] = []
+      for (const block of response.content) {
+        if (block.type === 'tool_use') {
+          try {
+            const result = await handleTool(block.name, block.input as Record<string, unknown>, supabase, clientId, clientPlan)
+            toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) })
+          } catch (err) {
+            toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: `Error: ${(err as Error).message}`, is_error: true })
+          }
+        }
+      }
+      messages.push({ role: 'assistant', content: response.content })
+      messages.push({ role: 'user', content: toolResults })
+      continue
+    }
+
+    break
+  }
+  return ''
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -574,60 +710,40 @@ Deno.serve(async (req) => {
 
     if (!clientRow) return new Response(JSON.stringify({ error: 'Client not found.' }), { status: 404 })
 
-    if (!clientRow.anthropic_api_key) {
-      return new Response(
-        JSON.stringify({ reply: 'No Anthropic API key found. Add yours in Settings → Integrations → AI Engine to activate the Google Agent.' }),
-        { headers: { 'Content-Type': 'application/json', ...CORS } }
-      )
-    }
-
-    const anthropic = new Anthropic({ apiKey: clientRow.anthropic_api_key })
     const { message, history = [] } = await req.json()
 
-    const messages: Anthropic.MessageParam[] = [
-      ...history.map((m: { role: string; content: string }) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
-      { role: 'user', content: message },
-    ]
-
+    // ── Gemini-first, Haiku fallback ──────────────────────────────────────────
     let finalText = ''
-    while (true) {
-      const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        tools: TOOLS,
-        messages,
-      })
 
-      if (response.stop_reason === 'end_turn') {
-        finalText = response.content
-          .filter(b => b.type === 'text')
-          .map(b => (b as Anthropic.TextBlock).text)
-          .join('')
-        break
-      }
-
-      if (response.stop_reason === 'tool_use') {
-        const toolResults: Anthropic.ToolResultBlockParam[] = []
-        for (const block of response.content) {
-          if (block.type === 'tool_use') {
-            try {
-              const result = await handleTool(block.name, block.input as Record<string, unknown>, supabase, clientRow.id, clientRow.plan)
-              toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) })
-            } catch (err) {
-              toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: `Error: ${(err as Error).message}`, is_error: true })
-            }
-          }
+    if (GEMINI_API_KEY) {
+      try {
+        finalText = await runGeminiLoop(
+          GEMINI_API_KEY, history, message, supabase, clientRow.id, clientRow.plan
+        )
+      } catch (geminiErr) {
+        // Gemini unavailable (rate limit, API error) — fall back to Haiku
+        console.error('Gemini failed, falling back to Haiku:', (geminiErr as Error).message)
+        if (!clientRow.anthropic_api_key) {
+          return new Response(
+            JSON.stringify({ reply: 'AI is temporarily unavailable. Please add an Anthropic API key in Settings → Integrations as a backup.' }),
+            { headers: { 'Content-Type': 'application/json', ...CORS } }
+          )
         }
-        messages.push({ role: 'assistant', content: response.content })
-        messages.push({ role: 'user', content: toolResults })
-        continue
+        finalText = await runHaikuLoop(
+          clientRow.anthropic_api_key, history, message, supabase, clientRow.id, clientRow.plan
+        )
       }
-
-      break
+    } else {
+      // No Gemini key configured — use Haiku directly
+      if (!clientRow.anthropic_api_key) {
+        return new Response(
+          JSON.stringify({ reply: 'No AI key found. Add an Anthropic API key in Settings → Integrations → AI Engine to activate the Google Agent.' }),
+          { headers: { 'Content-Type': 'application/json', ...CORS } }
+        )
+      }
+      finalText = await runHaikuLoop(
+        clientRow.anthropic_api_key, history, message, supabase, clientRow.id, clientRow.plan
+      )
     }
 
     return new Response(JSON.stringify({ reply: finalText }), {
