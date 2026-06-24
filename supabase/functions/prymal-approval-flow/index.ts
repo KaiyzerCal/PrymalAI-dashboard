@@ -166,9 +166,10 @@ Deno.serve(async (req: Request) => {
     // Gmail send
     else if (actionType === 'send_email') {
       const accessToken = await getValidAccessToken(admin, clientId, 'gmail')
-      if (accessToken && meta.to) {
+      const recipient = (meta.to ?? meta.recipient ?? meta.recipient_email ?? '') as string
+      if (accessToken && recipient) {
         const raw = buildGmailRaw({
-          to: meta.to as string,
+          to: recipient,
           subject: (meta.subject as string) ?? '(no subject)',
           body: finalText,
         })
@@ -186,7 +187,7 @@ Deno.serve(async (req: Request) => {
       } else if (!accessToken) {
         executionResult = { sent: false, error: 'Gmail not connected or token expired.' }
       } else {
-        executionResult = { sent: false, error: 'Missing recipient email in metadata.' }
+        executionResult = { sent: false, error: `Missing recipient email in metadata. Got keys: ${Object.keys(meta).join(', ')}` }
       }
     }
 

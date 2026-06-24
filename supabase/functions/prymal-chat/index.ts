@@ -112,7 +112,7 @@ const TOOLS: Anthropic.Tool[] = [
         action_type: { type: 'string', description: 'e.g. respond_to_review, send_email, create_event, drive_report' },
         summary: { type: 'string', description: 'Short title for the approval card' },
         draft_content: { type: 'string', description: 'Full content the client will review' },
-        metadata: { type: 'object', description: 'Extra context: review_id, recipient email, event details, etc.' }
+        metadata: { type: 'object', description: 'Extra context. For send_email: always include "to" (recipient email address) and "subject". For review responses: review_id. For events: start, end, title, attendees.' }
       },
       required: ['action_type', 'summary', 'draft_content']
     }
