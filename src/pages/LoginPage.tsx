@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 
 type Mode = 'password' | 'magic' | 'signup'
 
 export function LoginPage() {
+  const navigate = useNavigate()
   const [mode, setMode] = useState<Mode>('password')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -46,6 +48,8 @@ export function LoginPage() {
       if (error) {
         setMessage({ text: error.message, ok: false })
         if (error.message.toLowerCase().includes('invalid')) setShowReset(true)
+      } else {
+        navigate('/')
       }
     }
     setLoading(false)
