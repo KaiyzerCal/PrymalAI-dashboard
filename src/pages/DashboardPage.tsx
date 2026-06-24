@@ -17,6 +17,8 @@ interface AgentStats {
 
 export function DashboardPage() {
   const { client } = useClient()
+  const isAdmin = client?.owner_email === 'caljohnathon@gmail.com' || client?.owner_email === 'skyforgeai.studio@gmail.com'
+  const visibleAgents = isAdmin ? AGENTS : AGENTS.filter(a => a.id === 'google')
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({})
   const [stats, setStats] = useState<Partial<AgentStats>>({})
   const [countsLoading, setCountsLoading] = useState(true)
@@ -146,7 +148,7 @@ export function DashboardPage() {
               {client?.business_name ?? 'Your AI Team'}
             </h1>
             <p className="text-sm mt-2" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              {AGENTS.length} agents online — operating autonomously around the clock
+              {visibleAgents.length} agent{visibleAgents.length !== 1 ? 's' : ''} online — operating autonomously around the clock
             </p>
           </div>
 
@@ -164,7 +166,7 @@ export function DashboardPage() {
                 ALL SYSTEMS NOMINAL
               </p>
               <p className="text-xs mt-0.5" style={{ color: 'rgba(0,212,255,0.4)' }}>
-                {AGENTS.length} agents active
+                {visibleAgents.length} agent{visibleAgents.length !== 1 ? 's' : ''} active
               </p>
             </div>
             <span className="w-2 h-2 rounded-full dot-pulse ml-1" style={{ background: '#00d4ff' }} />
@@ -200,7 +202,7 @@ export function DashboardPage() {
 
       {/* Agent grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {AGENTS.map(agent => {
+        {visibleAgents.map(agent => {
           const pending = pendingCounts[agent.id] ?? 0
           const Icon = agent.icon
           const stat = agentStat(agent.id)
