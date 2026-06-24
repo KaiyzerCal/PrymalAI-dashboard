@@ -51,7 +51,7 @@ export function ApprovalQueuePage() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session?.access_token}`,
       },
-      body: JSON.stringify({ item_id: id, reply_text: reply }),
+      body: JSON.stringify({ approval_id: id, reply_text: reply }),
     })
     setItems((prev) =>
       prev.map((it) =>

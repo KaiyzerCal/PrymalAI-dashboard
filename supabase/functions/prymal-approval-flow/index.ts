@@ -50,16 +50,23 @@ async function getValidAccessToken(
 }
 
 // Build a RFC 2822 / base64url encoded Gmail message
-function buildGmailRaw(opts: { to: string; subject: string; body: string; from?: string }): string {
-  const msg = [
+function buildGmailRaw(opts: { to: string; subject: string; body: string; from?: string; replyTo?: string }): string {
+  const msgId = `<${Date.now()}.prymal@mail.gmail.com>`
+  const date = new Date().toUTCString()
+  const lines = [
     `To: ${opts.to}`,
     opts.from ? `From: ${opts.from}` : '',
+    opts.replyTo ? `Reply-To: ${opts.replyTo}` : '',
     `Subject: ${opts.subject}`,
+    `Date: ${date}`,
+    `Message-ID: ${msgId}`,
+    'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: quoted-printable',
     '',
     opts.body,
   ].filter(Boolean).join('\r\n')
-  return btoa(unescape(encodeURIComponent(msg)))
+  return btoa(unescape(encodeURIComponent(lines)))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
@@ -78,7 +85,9 @@ Deno.serve(async (req: Request) => {
     )
     if (userError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
 
-    const { approval_id, reply_text } = await req.json()
+    const body = await req.json()
+    const approval_id = body.approval_id ?? body.item_id
+    const reply_text = body.reply_text
     if (!approval_id || reply_text === undefined)
       return new Response(JSON.stringify({ error: 'Missing approval_id or reply_text' }), { status: 400, headers: CORS })
 
