@@ -26,45 +26,60 @@ const FEATURES = [
 
 const PRICING = [
   {
-    name: 'Personal',
-    price: '$17',
+    name: 'Free',
+    price: '$0',
     period: '/mo',
-    description: 'For everyday Google users',
+    description: 'Get started — no credit card needed',
     features: [
+      'AI chat interface',
       'Gmail inbox summaries & search',
       'Calendar view & availability',
       'Google Drive file search',
-      'AI chat interface',
+    ],
+    cta: 'Get started free',
+    highlight: false,
+  },
+  {
+    name: 'Starter',
+    price: '$20',
+    period: '/mo',
+    description: 'For freelancers & solopreneurs',
+    features: [
+      'Everything in Free',
+      'Send emails via AI (you approve)',
+      'Create & manage calendar events',
+      'Read & summarize Drive docs',
+      'Brand tone memory',
     ],
     cta: 'Start free trial',
     highlight: false,
   },
   {
-    name: 'Starter',
-    price: '$97',
+    name: 'Pro',
+    price: '$50',
     period: '/mo',
-    description: 'For freelancers & solopreneurs',
+    description: 'For small business owners',
     features: [
-      'Everything in Personal',
-      'Send emails via AI (you approve)',
-      'Create calendar events',
-      'Read & summarize Drive docs',
-      'Brand tone memory',
+      'Everything in Starter',
+      'Google Business Profile management',
+      'AI review responses',
+      'Reputation monitoring',
+      'Priority support',
     ],
     cta: 'Start free trial',
     highlight: true,
   },
   {
-    name: 'Pro',
-    price: '$197',
+    name: 'Agency',
+    price: '$100',
     period: '/mo',
-    description: 'For small business owners',
+    description: 'For agencies & multi-location businesses',
     features: [
-      'Everything in Starter',
-      'Google Business Profile',
-      'AI review responses',
-      'Reputation monitoring',
-      'Priority support',
+      'Everything in Pro',
+      'Multi-client management',
+      'White-label dashboard',
+      'Team access',
+      'Dedicated support',
     ],
     cta: 'Start free trial',
     highlight: false,
@@ -316,7 +331,7 @@ export function LandingPage() {
           <p className="text-center text-sm mb-16" style={{ color: 'rgba(255,255,255,0.35)' }}>
             7-day free trial on all plans. No credit card required to start.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {PRICING.map((p, i) => (
               <div
                 key={i}
