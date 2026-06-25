@@ -5,7 +5,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
-const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? ''
+// Platform-level Gemini key (optional override); client key takes priority
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -704,7 +704,7 @@ Deno.serve(async (req) => {
 
     const { data: clientRow } = await supabase
       .from('prymal_clients')
-      .select('id, anthropic_api_key, plan')
+      .select('id, anthropic_api_key, gemini_api_key, plan')
       .eq('user_id', user.id)
       .single()
 
@@ -712,37 +712,40 @@ Deno.serve(async (req) => {
 
     const { message, history = [] } = await req.json()
 
+    const geminiKey = (clientRow.gemini_api_key as string | null) ?? ''
+    const anthropicKey = (clientRow.anthropic_api_key as string | null) ?? ''
+
     // ── Gemini-first, Haiku fallback ──────────────────────────────────────────
     let finalText = ''
 
-    if (GEMINI_API_KEY) {
+    if (geminiKey) {
       try {
         finalText = await runGeminiLoop(
-          GEMINI_API_KEY, history, message, supabase, clientRow.id, clientRow.plan
+          geminiKey, history, message, supabase, clientRow.id, clientRow.plan
         )
       } catch (geminiErr) {
         // Gemini unavailable (rate limit, API error) — fall back to Haiku
         console.error('Gemini failed, falling back to Haiku:', (geminiErr as Error).message)
-        if (!clientRow.anthropic_api_key) {
+        if (!anthropicKey) {
           return new Response(
             JSON.stringify({ reply: 'AI is temporarily unavailable. Please add an Anthropic API key in Settings → Integrations as a backup.' }),
             { headers: { 'Content-Type': 'application/json', ...CORS } }
           )
         }
         finalText = await runHaikuLoop(
-          clientRow.anthropic_api_key, history, message, supabase, clientRow.id, clientRow.plan
+          anthropicKey, history, message, supabase, clientRow.id, clientRow.plan
         )
       }
     } else {
       // No Gemini key configured — use Haiku directly
-      if (!clientRow.anthropic_api_key) {
+      if (!anthropicKey) {
         return new Response(
-          JSON.stringify({ reply: 'No AI key found. Add an Anthropic API key in Settings → Integrations → AI Engine to activate the Google Agent.' }),
+          JSON.stringify({ reply: 'No AI key found. Add a Gemini or Anthropic API key in Settings → Integrations to activate the agent.' }),
           { headers: { 'Content-Type': 'application/json', ...CORS } }
         )
       }
       finalText = await runHaikuLoop(
-        clientRow.anthropic_api_key, history, message, supabase, clientRow.id, clientRow.plan
+        anthropicKey, history, message, supabase, clientRow.id, clientRow.plan
       )
     }
 

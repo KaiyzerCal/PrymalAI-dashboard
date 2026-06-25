@@ -32,6 +32,33 @@ function useAnthropicKey() {
   return { key, setKey, save, saving, saved, loaded }
 }
 
+function useGeminiKey() {
+  const [key, setKey] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    supabase.from('prymal_clients').select('gemini_api_key').single().then(({ data }) => {
+      if (data?.gemini_api_key) setKey(data.gemini_api_key)
+      setLoaded(true)
+    })
+  }, [])
+
+  async function save() {
+    setSaving(true)
+    const { data: clientRow } = await supabase.from('prymal_clients').select('id').single()
+    if (clientRow) {
+      await supabase.from('prymal_clients').update({ gemini_api_key: key.trim() }).eq('id', clientRow.id)
+    }
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return { key, setKey, save, saving, saved, loaded }
+}
+
 interface SocialAccount {
   id: string
   platform: string
@@ -73,6 +100,7 @@ export function IntegrationsPage() {
   const { client, loading: clientLoading, update } = useClient()
   const [tab, setTab] = useState<Tab>('integrations')
   const anthropicKey = useAnthropicKey()
+  const geminiKey = useGeminiKey()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [form, setForm] = useState({ brand_tone: '', knowledge_base: '', delivery_cadence: '' })
@@ -521,7 +549,42 @@ export function IntegrationsPage() {
                 </button>
               </div>
               <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                Get your key at <span style={{ color: 'rgba(0,212,255,0.5)' }}>console.anthropic.com</span> → API Keys.
+                Get your key at <span style={{ color: 'rgba(0,212,255,0.5)' }}>console.anthropic.com</span> → API Keys. Used as fallback when Gemini is unavailable.
+              </p>
+            </div>
+          </IntegrationCard>
+
+          {/* ── Gemini AI ── */}
+          <IntegrationCard
+            icon={<Zap size={18} style={{ color: '#00d4ff' }} />}
+            title="Gemini AI (Primary)"
+            subtitle="Google Gemini API key — free tier, used first to save cost"
+            loading={!geminiKey.loaded}
+            connected={!!geminiKey.key}
+          >
+            <div className="mt-4 pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  placeholder="AIza…"
+                  value={geminiKey.key}
+                  onChange={e => geminiKey.setKey(e.target.value)}
+                  className="flex-1 rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none"
+                  style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)' }}
+                  onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.3)' }}
+                  onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.12)' }}
+                />
+                <button
+                  onClick={geminiKey.save}
+                  disabled={geminiKey.saving || !geminiKey.key.trim()}
+                  className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                  style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff' }}
+                >
+                  {geminiKey.saved ? 'SAVED ✓' : geminiKey.saving ? 'SAVING…' : 'SAVE'}
+                </button>
+              </div>
+              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                Get a free key at <span style={{ color: 'rgba(0,212,255,0.5)' }}>aistudio.google.com</span> → Get API key. No billing required.
               </p>
             </div>
           </IntegrationCard>
