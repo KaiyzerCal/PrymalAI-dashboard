@@ -14,20 +14,19 @@ const CORS = {
 }
 
 // Plan hierarchy
-const PLAN_RANK: Record<string, number> = { trial: 0, starter: 1, pro: 2, agency: 3 }
+const PLAN_RANK: Record<string, number> = { free: 0, tier1: 1, tier2: 2, tier3: 3, tier4: 4, trial: 0, starter: 1, pro: 2, agency: 3 }
 function planAtLeast(clientPlan: string, required: string) {
   return (PLAN_RANK[clientPlan] ?? 0) >= (PLAN_RANK[required] ?? 99)
 }
 
 const SYSTEM_PROMPT = `You are Prymal — an autonomous AI Google Agent managing a client's full Google workspace and online presence.
 
-You have access to Gmail, Google Calendar, Google Drive, and Google Business Profile — depending on their plan and which services they've connected.
-
-CAPABILITIES BY PLAN:
-- Free ($0/mo): Gmail (read, search) + Google Calendar (view) + Google Drive (search)
-- Starter ($20/mo): + Gmail send + Calendar event creation + Drive read & summarize + brand tone memory
-- Pro ($50/mo): + Google Business Profile (review monitoring, AI responses, reputation management)
-- Agency ($100/mo): + multi-client management + white-label + team access + dedicated support
+CAPABILITIES BY TIER (depth-first progression):
+- Free ($0/mo): Dashboard & profile setup only (no agent access)
+- Tier 1 — Gmail Mastery ($20/mo): Email composition, sending, management (labels, filters, threads, attachments, schedule sends, auto-reply)
+- Tier 2 — Calendar & Scheduling ($100/mo): Everything in Tier 1 + Calendar management, appointment scheduling, Google Tasks
+- Tier 3 — Content Creation ($150/mo): Everything in Tier 1-2 + Google Docs (create/edit/share), Google Sheets (data, logging, reports), Google Slides (presentations)
+- Tier 4 — Advanced Management ($200/mo): Everything in Tier 1-3 + Google Drive advanced management, Google Meet scheduling, Google Contacts, Google Photos, Google Business Profile (reviews, posts, reputation)
 
 AI ENGINE: Uses the client's Anthropic (Claude Haiku) key as primary. Falls back to Gemini if Anthropic is unavailable.
 
@@ -317,7 +316,7 @@ async function handleTool(
     // ── Pro+ : GBP ──
 
     case 'get_reviews': {
-      requirePlan('pro', 'Google Business Profile reviews')
+      requirePlan('tier4', 'Google Business Profile reviews')
       const token = await getFreshToken(supabase, clientId, 'google')
       if (!token) return { error: 'Google Business Profile not connected. Go to Settings → Integrations → Google Business Profile to connect.' }
 
@@ -358,7 +357,7 @@ async function handleTool(
     // ── Starter+ : Gmail ──
 
     case 'get_emails': {
-      requirePlan('starter', 'Gmail')
+      requirePlan('tier1', 'Gmail')
       const token = await getFreshToken(supabase, clientId, 'gmail')
       if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
 
@@ -398,7 +397,7 @@ async function handleTool(
     }
 
     case 'get_email_thread': {
-      requirePlan('starter', 'Gmail')
+      requirePlan('tier1', 'Gmail')
       const token = await getFreshToken(supabase, clientId, 'gmail')
       if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
 
@@ -437,7 +436,7 @@ async function handleTool(
     // ── Starter+ : Calendar ──
 
     case 'get_calendar_events': {
-      requirePlan('starter', 'Google Calendar')
+      requirePlan('tier2', 'Google Calendar')
       const token = await getFreshToken(supabase, clientId, 'calendar')
       if (!token) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
 
@@ -471,7 +470,7 @@ async function handleTool(
     }
 
     case 'get_availability': {
-      requirePlan('starter', 'Google Calendar')
+      requirePlan('tier2', 'Google Calendar')
       const token = await getFreshToken(supabase, clientId, 'calendar')
       if (!token) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
 
@@ -500,7 +499,7 @@ async function handleTool(
     // ── Starter+ : Drive ──
 
     case 'search_drive_files': {
-      requirePlan('starter', 'Google Drive')
+      requirePlan('tier3', 'Google Drive')
       const token = await getFreshToken(supabase, clientId, 'drive')
       if (!token) return { error: 'Google Drive not connected. Go to Settings → Integrations → Google Drive to connect.' }
 
@@ -519,7 +518,7 @@ async function handleTool(
     }
 
     case 'read_drive_file': {
-      requirePlan('starter', 'Google Drive')
+      requirePlan('tier3', 'Google Drive')
       const token = await getFreshToken(supabase, clientId, 'drive')
       if (!token) return { error: 'Google Drive not connected. Go to Settings → Integrations → Google Drive to connect.' }
 
