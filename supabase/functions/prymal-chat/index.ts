@@ -29,6 +29,8 @@ CAPABILITIES BY PLAN:
 - Pro ($50/mo): + Google Business Profile (review monitoring, AI responses, reputation management)
 - Agency ($100/mo): + multi-client management + white-label + team access + dedicated support
 
+AI ENGINE: Uses the client's Anthropic (Claude Haiku) key as primary. Falls back to Gemini if Anthropic is unavailable.
+
 RULES — never break these:
 1. Never post, send, or create anything externally without going through queue_action first. The client approves everything in the dashboard before it goes out.
 2. Reading data (reviews, emails, events, files) is always safe — do it freely.
@@ -716,37 +718,36 @@ Deno.serve(async (req) => {
     const geminiKey = (clientRow.gemini_api_key as string | null) ?? ''
     const anthropicKey = (clientRow.anthropic_api_key as string | null) ?? ''
 
-    // ── Gemini-first, Haiku fallback ──────────────────────────────────────────
+    // ── Haiku-first, Gemini fallback ──────────────────────────────────────────
     let finalText = ''
 
-    if (geminiKey) {
+    if (anthropicKey) {
       try {
-        finalText = await runGeminiLoop(
-          geminiKey, history, message, supabase, clientRow.id, clientRow.plan
-        )
-      } catch (geminiErr) {
-        // Gemini unavailable (rate limit, API error) — fall back to Haiku
-        console.error('Gemini failed, falling back to Haiku:', (geminiErr as Error).message)
-        if (!anthropicKey) {
-          return new Response(
-            JSON.stringify({ reply: 'AI is temporarily unavailable. Please add an Anthropic API key in Settings → Integrations as a backup.' }),
-            { headers: { 'Content-Type': 'application/json', ...CORS } }
-          )
-        }
         finalText = await runHaikuLoop(
           anthropicKey, history, message, supabase, clientRow.id, clientRow.plan
         )
-      }
-    } else {
-      // No Gemini key configured — use Haiku directly
-      if (!anthropicKey) {
-        return new Response(
-          JSON.stringify({ reply: 'No AI key found. Add a Gemini or Anthropic API key in Settings → Integrations to activate the agent.' }),
-          { headers: { 'Content-Type': 'application/json', ...CORS } }
+      } catch (haikuErr) {
+        // Anthropic unavailable or quota exceeded — fall back to Gemini
+        console.error('Haiku failed, falling back to Gemini:', (haikuErr as Error).message)
+        if (!geminiKey) {
+          return new Response(
+            JSON.stringify({ reply: 'AI is temporarily unavailable. Please add a Gemini API key in Settings → Integrations as a backup.' }),
+            { headers: { 'Content-Type': 'application/json', ...CORS } }
+          )
+        }
+        finalText = await runGeminiLoop(
+          geminiKey, history, message, supabase, clientRow.id, clientRow.plan
         )
       }
-      finalText = await runHaikuLoop(
-        anthropicKey, history, message, supabase, clientRow.id, clientRow.plan
+    } else if (geminiKey) {
+      // No Anthropic key — use Gemini directly
+      finalText = await runGeminiLoop(
+        geminiKey, history, message, supabase, clientRow.id, clientRow.plan
+      )
+    } else {
+      return new Response(
+        JSON.stringify({ reply: 'No AI key found. Add an Anthropic API key in Settings → Integrations to activate the agent.' }),
+        { headers: { 'Content-Type': 'application/json', ...CORS } }
       )
     }
 

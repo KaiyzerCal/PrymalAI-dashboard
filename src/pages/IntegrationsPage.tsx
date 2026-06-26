@@ -523,7 +523,7 @@ export function IntegrationsPage() {
           <IntegrationCard
             icon={<Zap size={18} style={{ color: '#00d4ff' }} />}
             title="AI Engine"
-            subtitle="Anthropic API key — powers your agents & chat"
+            subtitle="Anthropic API key — primary AI engine for your agents & chat"
             loading={!anthropicKey.loaded}
             connected={!!anthropicKey.key}
           >
@@ -549,7 +549,7 @@ export function IntegrationsPage() {
                 </button>
               </div>
               <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                Get your key at <span style={{ color: 'rgba(0,212,255,0.5)' }}>console.anthropic.com</span> → API Keys. Used as fallback when Gemini is unavailable.
+                Get your key at <span style={{ color: 'rgba(0,212,255,0.5)' }}>console.anthropic.com</span> → API Keys. Used as the primary AI engine — Gemini is the fallback.
               </p>
             </div>
           </IntegrationCard>
@@ -557,8 +557,8 @@ export function IntegrationsPage() {
           {/* ── Gemini AI ── */}
           <IntegrationCard
             icon={<Zap size={18} style={{ color: '#00d4ff' }} />}
-            title="Gemini AI (Primary)"
-            subtitle="Google Gemini API key — free tier, used first to save cost"
+            title="Gemini AI (Fallback)"
+            subtitle="Google Gemini API key — free tier, used when Anthropic is unavailable"
             loading={!geminiKey.loaded}
             connected={!!geminiKey.key}
           >
