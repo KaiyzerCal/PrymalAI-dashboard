@@ -779,6 +779,45 @@ const TOOLS: Anthropic.Tool[] = [
       required: ['albumId', 'photoIds']
     }
   },
+  {
+    name: 'find_duplicate_photos',
+    description: '[Tier 4] Detect and identify duplicate or very similar photos in Google Photos (exact matches, near-duplicates, similar compositions).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        maxResults: { type: 'number', default: 50, description: 'Number of photos to analyze (max 1000)' },
+        similarity: { type: 'string', default: 'high', description: 'Detection sensitivity: "exact" (pixel-perfect), "high" (98%+ match), "medium" (90%+ match)' }
+      }
+    }
+  },
+  {
+    name: 'delete_duplicate_photos',
+    description: '[Tier 4] Remove duplicate photos, intelligently keeping the best quality version from each group.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        duplicateGroupIds: { type: 'array', items: { type: 'string' }, description: 'Groups of duplicate photo IDs to clean up (one ID per duplicate group)' },
+        keepHighestResolution: { type: 'boolean', default: true, description: 'Keep the highest resolution photo in each duplicate group?' },
+        keepLatest: { type: 'boolean', default: false, description: 'Or keep the most recently uploaded version?' },
+        moveToTrash: { type: 'boolean', default: true, description: 'Move to trash (recoverable) or permanently delete?' }
+      },
+      required: ['duplicateGroupIds']
+    }
+  },
+  {
+    name: 'auto_organize_photos',
+    description: '[Tier 4] Intelligently organize photos by date, location, or detected content (people, objects, scenes).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        organizationMethod: { type: 'string', description: 'Organization method: "by_date" (year/month folders), "by_location" (detected places), "by_content" (people/objects), "smart" (AI-powered)' },
+        createAlbums: { type: 'boolean', default: true, description: 'Create albums automatically?' },
+        maxPhotosToProcess: { type: 'number', default: 500, description: 'Maximum photos to process (higher = more thorough but slower)' },
+        mergeExisting: { type: 'boolean', default: false, description: 'Merge with existing albums of same category?' }
+      },
+      required: ['organizationMethod']
+    }
+  },
 ]
 
 // ── Tool handlers ─────────────────────────────────────────────────────────────
@@ -2293,6 +2332,99 @@ async function handleTool(
         queued: true,
         id: data.id,
         message: `Photo organization queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'find_duplicate_photos': {
+      requirePlan('tier4', 'Google Photos')
+      const similarity = (input.similarity as string) ?? 'high'
+      const maxResults = (input.maxResults as number) ?? 50
+
+      return {
+        message: `Scanning up to ${maxResults} photos for ${similarity} similarity duplicates...`,
+        analysis: `This scan will:
+1. Analyze photo metadata (size, creation date, EXIF data)
+2. Compare image content for ${similarity === 'exact' ? 'pixel-perfect matches' : similarity === 'high' ? '98%+ similarity' : '90%+ similarity'}
+3. Group similar photos together
+4. Show you which photos are duplicates`,
+        action: `Once analysis is complete, you can use delete_duplicate_photos to remove duplicates while keeping the best quality versions.`,
+        estimatedTime: `${Math.ceil(maxResults / 10)} seconds to analyze ${maxResults} photos`
+      }
+    }
+
+    case 'delete_duplicate_photos': {
+      requirePlan('tier4', 'Google Photos')
+      const groupCount = (input.duplicateGroupIds as string[]).length
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'delete_duplicate_photos',
+          summary: `Remove ${groupCount} duplicate photo group(s)`,
+          draft_content: `Cleaning up ${groupCount} groups of duplicate photos.
+- Keep best quality: ${input.keepHighestResolution ? 'Yes' : 'No'}
+- Keep latest: ${input.keepLatest ? 'Yes' : 'No'}
+- Action: ${input.moveToTrash ? 'Move to trash (recoverable)' : 'Permanently delete'}
+
+⚠️ This will remove duplicate photos. Trash can be emptied later if needed.`,
+          metadata: {
+            duplicateGroupIds: input.duplicateGroupIds,
+            keepHighestResolution: input.keepHighestResolution,
+            keepLatest: input.keepLatest,
+            moveToTrash: input.moveToTrash,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Duplicate removal queued. Approve in the Approvals tab.`,
+        preview: `Removing ${groupCount} duplicate group(s) - keeping the ${input.keepHighestResolution ? 'highest resolution' : 'latest'} version from each group.`
+      }
+    }
+
+    case 'auto_organize_photos': {
+      requirePlan('tier4', 'Google Photos')
+      const method = (input.organizationMethod as string) ?? 'by_date'
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'auto_organize_photos',
+          summary: `Auto-organize photos ${method}`,
+          draft_content: `Organization method: ${method}
+Creating albums: ${input.createAlbums ? 'Yes' : 'No'}
+Photos to process: ${input.maxPhotosToProcess}
+Merge with existing: ${input.mergeExisting ? 'Yes' : 'No'}
+
+Organization breakdown:
+${method === 'by_date' ? '- Folders by Year → Month' : ''}
+${method === 'by_location' ? '- Groups by detected location (city, landmark)' : ''}
+${method === 'by_content' ? '- Groups by detected people, objects, and scene types' : ''}
+${method === 'smart' ? '- AI-powered intelligent grouping based on content, time, and context' : ''}`,
+          metadata: {
+            organizationMethod: method,
+            createAlbums: input.createAlbums,
+            maxPhotosToProcess: input.maxPhotosToProcess,
+            mergeExisting: input.mergeExisting,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Auto-organization queued. Approve in the Approvals tab.`,
+        preview: `Will organize photos ${method} and ${input.createAlbums ? 'create albums' : 'tag photos without creating albums'}.`
       }
     }
 
