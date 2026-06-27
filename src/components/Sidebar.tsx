@@ -90,7 +90,7 @@ export function Sidebar() {
           AGENTS
         </p>
 
-        {AGENTS.map(agent => {
+        {(isAdmin ? AGENTS : AGENTS.filter(a => a.id === 'google')).map(agent => {
           const Icon = agent.icon
           return (
             <NavLink
