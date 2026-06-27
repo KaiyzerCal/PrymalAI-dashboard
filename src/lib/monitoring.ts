@@ -69,26 +69,16 @@ export function captureEvent(eventName: string, properties?: Record<string, unkn
 }
 
 // Monitor API performance
-export async function monitorFetch<T>(
+export async function monitorFetch(
   url: string,
   options?: RequestInit,
   context?: Record<string, unknown>
 ): Promise<Response> {
-  const transaction = Sentry.startTransaction({
-    op: 'http.client',
-    name: `${options?.method || 'GET'} ${new URL(url).pathname}`,
-  })
-
   try {
-    const response = await fetch(url, options)
-    transaction.setStatus('ok')
-    return response
+    return await fetch(url, options)
   } catch (error) {
-    transaction.setStatus('internal_error')
     captureError(error as Error, { url, ...context })
     throw error
-  } finally {
-    transaction.finish()
   }
 }
 
