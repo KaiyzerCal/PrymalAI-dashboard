@@ -17,8 +17,10 @@ interface AgentStats {
 
 export function DashboardPage() {
   const { client } = useClient()
-  const isAdmin = client?.owner_email === 'caljohnathon@gmail.com' || client?.owner_email === 'skyforgeai.studio@gmail.com'
-  const visibleAgents = isAdmin ? AGENTS : AGENTS.filter(a => a.id === 'google')
+  const adminEmails = ['caljohnathon@gmail.com', 'skyforgeai.studio@gmail.com']
+  const isAdmin = client?.owner_email && adminEmails.includes(client.owner_email)
+  // Non-admin users only see Google agent
+  const visibleAgents = isAdmin ? AGENTS : [AGENTS.find(a => a.id === 'google')!]
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({})
   const [stats, setStats] = useState<Partial<AgentStats>>({})
   const [countsLoading, setCountsLoading] = useState(true)
