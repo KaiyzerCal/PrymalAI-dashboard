@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useClient } from '@/hooks/useClient'
 import { CheckCircle, Globe, ChevronDown, CreditCard, Zap, Mail, Calendar, HardDrive, Edit2, Lock, Video } from 'lucide-react'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
-import { API_TO_TIER, TIER_CONFIGS, planAtLeast } from '@/lib/tierConfig'
+import { TIER_CONFIGS, planAtLeast } from '@/lib/tierConfig'
 
 type Tab = 'brand' | 'integrations' | 'billing' | 'account'
 
