@@ -768,9 +768,10 @@ function IntegrationCard({
 }
 
 const PLANS = [
-  { key: 'starter', label: 'Starter', price: '$299/mo', features: ['Google Agent', 'Brand Agent', '50 leads/mo'] },
-  { key: 'pro', label: 'Pro', price: '$599/mo', features: ['All Starter features', 'Outreach + Service Agents', '200 leads/mo', 'Priority support'] },
-  { key: 'agency', label: 'Agency', price: '$1,499/mo', features: ['All Pro features', 'Unlimited leads', 'Multi-location', 'White label'] },
+  { key: 'tier1', label: 'Tier 1', price: '$17/mo', features: ['Email management', 'Email composition & drafting', 'Labels, filters, threads'] },
+  { key: 'tier2', label: 'Tier 2', price: '$47/mo', features: ['Everything in Tier 1', 'Calendar management', 'Appointment scheduling', 'Google Tasks'] },
+  { key: 'tier3', label: 'Tier 3', price: '$97/mo', features: ['Everything in Tier 2', 'Google Drive management', 'Docs, Sheets, Slides', 'Content automation'] },
+  { key: 'tier4', label: 'Tier 4', price: '$147/mo', features: ['Everything in Tier 3', 'Google Meet scheduling', 'Contacts & Photos', 'Google Business Profile'] },
 ]
 
 function BillingTab({ client }: { client: import('@/hooks/useClient').PrymalClient | null }) {
