@@ -34,7 +34,7 @@ export function LoginPage() {
           trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
           onboarding_complete: false,
         }, { onConflict: 'user_id' })
-        setMessage({ text: 'Account created! Redirecting to onboarding…', ok: true })
+        navigate('/onboarding')
       }
     } else if (mode === 'magic') {
       const { error } = await supabase.auth.signInWithOtp({ email })
