@@ -438,14 +438,24 @@ export function LandingPage() {
           © 2026 PrymalAI. All rights reserved.
         </p>
         <div className="flex gap-4">
-          {['Privacy', 'Terms', 'Contact'].map(l => (
-            <a key={l} href="#" className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.25)' }}
-              onMouseEnter={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.6)' }}
-              onMouseLeave={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.25)' }}
-            >
-              {l}
-            </a>
-          ))}
+          <a href="/privacy" className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.25)' }}
+            onMouseEnter={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.6)' }}
+            onMouseLeave={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.25)' }}
+          >
+            Privacy
+          </a>
+          <a href="/terms" className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.25)' }}
+            onMouseEnter={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.6)' }}
+            onMouseLeave={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.25)' }}
+          >
+            Terms
+          </a>
+          <a href="/security" className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.25)' }}
+            onMouseEnter={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.6)' }}
+            onMouseLeave={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.25)' }}
+          >
+            Security
+          </a>
         </div>
       </footer>
 
