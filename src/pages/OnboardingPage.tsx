@@ -5,43 +5,43 @@ import { Check } from 'lucide-react'
 
 const PLANS = [
   {
-    id: 'trial',
-    name: 'Free Trial',
-    price: '$0',
-    period: '14 days',
-    description: 'Full access to all 6 agents',
-    features: ['All 6 AI agents', 'Unlimited approvals', 'Email & booking automation', 'No credit card required'],
-    cta: 'Start Free Trial',
+    id: 'tier1',
+    name: 'Tier 1',
+    price: '$17',
+    period: '/month',
+    description: 'Email mastery',
+    features: ['Email composition & drafting', 'Read, send, manage emails', 'Labels, filters, threads', 'Schedule sends & auto-reply'],
+    cta: 'Start with Tier 1',
     highlight: false,
   },
   {
-    id: 'starter',
-    name: 'Starter',
-    price: '$299',
+    id: 'tier2',
+    name: 'Tier 2',
+    price: '$47',
     period: '/month',
-    description: 'For single-location businesses',
-    features: ['All 6 AI agents', '1 business location', 'Google review automation', 'Email outreach (500/mo)', 'Priority support'],
-    cta: 'Choose Starter',
+    description: 'Everything in Tier 1 +',
+    features: ['Everything in Tier 1', 'Calendar management', 'Appointment scheduling', 'Google Tasks integration'],
+    cta: 'Start with Tier 2',
     highlight: false,
   },
   {
-    id: 'pro',
-    name: 'Pro',
-    price: '$599',
+    id: 'tier3',
+    name: 'Tier 3',
+    price: '$97',
     period: '/month',
-    description: 'For growing businesses',
-    features: ['All 6 AI agents', 'Up to 3 locations', 'Unlimited email outreach', 'Webhook integrations', 'Weekly intel briefings', 'Dedicated onboarding'],
-    cta: 'Choose Pro',
+    description: 'Everything in Tier 2 +',
+    features: ['Everything in Tier 2', 'Google Drive management', 'Docs, Sheets, Slides', 'Content automation'],
+    cta: 'Start with Tier 3',
     highlight: true,
   },
   {
-    id: 'agency',
-    name: 'Agency',
-    price: '$1,499',
+    id: 'tier4',
+    name: 'Tier 4',
+    price: '$147',
     period: '/month',
-    description: 'For agencies & enterprises',
-    features: ['All 6 AI agents', 'Unlimited locations', 'White-label dashboard', 'API access', 'Custom integrations', 'Dedicated account manager'],
-    cta: 'Choose Agency',
+    description: 'Everything in Tier 3 +',
+    features: ['Everything in Tier 3', 'Google Meet scheduling', 'Google Contacts management', 'Google Business Profile'],
+    cta: 'Start with Tier 4',
     highlight: false,
   },
 ]
@@ -114,32 +114,19 @@ export function OnboardingPage() {
   }
 
   async function choosePlan(planId: string) {
-    if (planId === 'trial') {
-      setSaving(true)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) await supabase.from('prymal_clients').update({ onboarding_complete: true }).eq('user_id', user.id)
-      setSaving(false)
-      navigate('/')
-      return
-    }
     setSaving(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch(`${FUNCTION_BASE}/prymal-stripe-checkout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ plan: planId }),
-      })
-      const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        alert(data.error ?? 'Stripe not configured yet. Starting trial instead.')
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) await supabase.from('prymal_clients').update({ onboarding_complete: true }).eq('user_id', user.id)
-        navigate('/')
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        // Update plan and mark onboarding complete
+        await supabase.from('prymal_clients').update({
+          plan: planId,
+          onboarding_complete: true
+        }).eq('user_id', user.id)
       }
-    } catch {
+      navigate('/')
+    } catch (err) {
+      console.error('Error choosing plan:', err)
       navigate('/')
     } finally {
       setSaving(false)
@@ -207,12 +194,12 @@ export function OnboardingPage() {
               ))}
               <div>
                 <label className="block text-xs font-semibold tracking-widest mb-1.5" style={{ color: 'rgba(0,212,255,0.5)' }}>INDUSTRY</label>
-                <select {...field('industry')} className={inputClass} style={{ ...inputStyle, colorScheme: 'dark' }}
+                <select {...field('industry')} className={inputClass} style={{ ...inputStyle, colorScheme: 'dark', color: '#ffffff', backgroundColor: 'rgba(0,212,255,0.04)' }}
                   onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.4)' }}
                   onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.12)' }}
                 >
-                  <option value="">Select industry…</option>
-                  {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                  <option value="" style={{ color: '#ffffff', backgroundColor: '#1a1a2e' }}>Select industry…</option>
+                  {INDUSTRIES.map(i => <option key={i} value={i} style={{ color: '#ffffff', backgroundColor: '#1a1a2e' }}>{i}</option>)}
                 </select>
               </div>
             </div>
