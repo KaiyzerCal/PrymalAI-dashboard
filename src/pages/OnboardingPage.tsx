@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
-import { Check } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 
 const PLANS = [
   {
@@ -47,6 +47,55 @@ const PLANS = [
 ]
 
 const INDUSTRIES = ['Fitness & Wellness', 'Restaurant & Food', 'Retail', 'Healthcare', 'Legal', 'Real Estate', 'Home Services', 'Beauty & Spa', 'Auto', 'Other']
+
+function CustomDropdown({ value, onChange, options, placeholder }: { value: string; onChange: (val: string) => void; options: string[]; placeholder: string }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    if (open) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full rounded-lg px-3 py-2.5 text-sm text-left text-white placeholder-zinc-600 focus:outline-none transition-all flex items-center justify-between"
+        style={{ background: 'rgba(0,212,255,0.04)', border: open ? '1px solid rgba(0,212,255,0.4)' : '1px solid rgba(0,212,255,0.12)' }}
+      >
+        <span>{value || placeholder}</span>
+        <ChevronDown size={16} style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+      </button>
+      {open && (
+        <div
+          className="absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg z-50"
+          style={{ background: '#ffffff', border: '1px solid rgba(0,212,255,0.2)' }}
+        >
+          {options.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => {
+                onChange(opt)
+                setOpen(false)
+              }}
+              className="w-full px-3 py-2 text-sm text-left text-gray-900 hover:bg-blue-50 transition-colors first:rounded-t-lg last:rounded-b-lg"
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function OnboardingPage() {
   const navigate = useNavigate()
@@ -194,13 +243,7 @@ export function OnboardingPage() {
               ))}
               <div>
                 <label className="block text-xs font-semibold tracking-widest mb-1.5" style={{ color: 'rgba(0,212,255,0.5)' }}>INDUSTRY</label>
-                <select {...field('industry')} className={inputClass} style={{ ...inputStyle, colorScheme: 'light', color: '#000000', backgroundColor: '#ffffff' }}
-                  onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.4)' }}
-                  onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.12)' }}
-                >
-                  <option value="">Select industry…</option>
-                  {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
-                </select>
+                <CustomDropdown value={form.industry} onChange={e => setForm(f => ({ ...f, industry: e }))} options={INDUSTRIES} placeholder="Select industry…" />
               </div>
             </div>
             <button
