@@ -26,19 +26,6 @@ const FEATURES = [
 
 const PRICING = [
   {
-    name: 'Free',
-    price: '$0',
-    period: '/mo',
-    description: 'Get started — no credit card needed',
-    features: [
-      'Dashboard & profile setup',
-      'AI agent interface',
-      'Read-only access to your Google services',
-    ],
-    cta: 'Get started free',
-    highlight: false,
-  },
-  {
     name: 'Tier 1',
     price: '$17',
     period: '/mo',
@@ -64,7 +51,7 @@ const PRICING = [
       'Appointment automation',
     ],
     cta: 'Start free trial',
-    highlight: true,
+    highlight: false,
   },
   {
     name: 'Tier 3',
@@ -79,7 +66,7 @@ const PRICING = [
       'Google Slides (presentations)',
     ],
     cta: 'Start free trial',
-    highlight: false,
+    highlight: true,
   },
   {
     name: 'Tier 4',
@@ -343,7 +330,7 @@ export function LandingPage() {
           <p className="text-center text-sm mb-16" style={{ color: 'rgba(255,255,255,0.35)' }}>
             7-day free trial on all plans. No credit card required to start.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {PRICING.map((p, i) => (
               <div
                 key={i}
