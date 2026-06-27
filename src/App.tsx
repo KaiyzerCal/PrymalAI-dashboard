@@ -17,6 +17,7 @@ import { LandingPage } from '@/pages/LandingPage'
 import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage'
 import { TermsOfServicePage } from '@/pages/TermsOfServicePage'
 import { SecurityPolicyPage } from '@/pages/SecurityPolicyPage'
+import { ContactPage } from '@/pages/ContactPage'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/terms" element={<TermsOfServicePage />} />
         <Route path="/security" element={<SecurityPolicyPage />} />
+        <Route path="/contact" element={<ContactPage />} />
         <Route path="/onboarding" element={
           <AuthGuardSession>
             <OnboardingPage />

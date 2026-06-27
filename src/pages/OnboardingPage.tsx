@@ -101,6 +101,7 @@ export function OnboardingPage() {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
+  const [policiesAcknowledged, setPoliciesAcknowledged] = useState(false)
   const [form, setForm] = useState({
     business_name: '',
     industry: '',
@@ -163,6 +164,10 @@ export function OnboardingPage() {
   }
 
   async function choosePlan(planId: string) {
+    if (!policiesAcknowledged) {
+      alert('Please acknowledge our policies before continuing')
+      return
+    }
     setSaving(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -298,6 +303,34 @@ export function OnboardingPage() {
               <h2 className="text-white font-bold tracking-wide">Choose Your Plan</h2>
               <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Start free — upgrade anytime. No contracts.</p>
             </div>
+
+            {/* Policy Acknowledgment */}
+            <div className="mb-8 p-4 rounded-lg" style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)' }}>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={policiesAcknowledged}
+                  onChange={e => setPoliciesAcknowledged(e.target.checked)}
+                  className="mt-1 w-4 h-4 cursor-pointer"
+                  style={{ accentColor: '#00d4ff' }}
+                />
+                <span className="text-xs text-slate-300">
+                  I agree to the{' '}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">
+                    Privacy Policy
+                  </a>
+                  {', '}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">
+                    Terms of Service
+                  </a>
+                  {', and '}
+                  <a href="/security" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">
+                    Security Policy
+                  </a>
+                </span>
+              </label>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {PLANS.map(plan => (
                 <div

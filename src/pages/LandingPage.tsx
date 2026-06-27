@@ -456,6 +456,12 @@ export function LandingPage() {
           >
             Security
           </a>
+          <a href="/contact" className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.25)' }}
+            onMouseEnter={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.6)' }}
+            onMouseLeave={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.25)' }}
+          >
+            Contact
+          </a>
         </div>
       </footer>
 
