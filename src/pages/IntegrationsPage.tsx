@@ -348,7 +348,6 @@ export function IntegrationsPage() {
                     </div>
                   </div>
                   {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
-                </div>
                   <button
                     onClick={() => { setGbpEditing(v => !v); setManualMsg(null) }}
                     className="flex items-center gap-1 text-xs transition-colors"
