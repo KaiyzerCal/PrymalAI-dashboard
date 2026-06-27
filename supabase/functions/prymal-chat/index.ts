@@ -218,6 +218,81 @@ const TOOLS: Anthropic.Tool[] = [
       required: ['fileId']
     }
   },
+
+  // ── Tier 1: Email Composition & Sending ──
+  {
+    name: 'send_email',
+    description: '[Tier 1+] Compose and send an email. Requires user approval before sending.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        to: { type: 'string', description: 'Recipient email address' },
+        subject: { type: 'string', description: 'Email subject line' },
+        body: { type: 'string', description: 'Email body (plain text or HTML)' },
+        cc: { type: 'string', description: 'CC recipients (comma-separated, optional)' },
+        bcc: { type: 'string', description: 'BCC recipients (comma-separated, optional)' }
+      },
+      required: ['to', 'subject', 'body']
+    }
+  },
+
+  // ── Tier 1: Label Management ──
+  {
+    name: 'create_label',
+    description: '[Tier 1+] Create a new Gmail label.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Label name (e.g., "Invoices", "Follow-up", "Important")' }
+      },
+      required: ['name']
+    }
+  },
+  {
+    name: 'apply_label',
+    description: '[Tier 1+] Add a label to one or more emails.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        threadIds: { type: 'array', items: { type: 'string' }, description: 'Gmail thread IDs to label' },
+        labelName: { type: 'string', description: 'Label name to apply' }
+      },
+      required: ['threadIds', 'labelName']
+    }
+  },
+
+  // ── Tier 2: Calendar Events ──
+  {
+    name: 'create_event',
+    description: '[Tier 2+] Schedule a calendar event.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Event title' },
+        startTime: { type: 'string', description: 'Start time (ISO 8601 format, e.g., "2026-06-30T14:00:00")' },
+        endTime: { type: 'string', description: 'End time (ISO 8601 format)' },
+        description: { type: 'string', description: 'Event description (optional)' },
+        attendees: { type: 'array', items: { type: 'string' }, description: 'Attendee emails (optional)' },
+        location: { type: 'string', description: 'Event location (optional)' }
+      },
+      required: ['title', 'startTime', 'endTime']
+    }
+  },
+
+  // ── Tier 2: Google Tasks ──
+  {
+    name: 'create_task',
+    description: '[Tier 2+] Create a new Google Task.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Task title' },
+        description: { type: 'string', description: 'Task description (optional)' },
+        dueDate: { type: 'string', description: 'Due date (ISO 8601 format, e.g., "2026-06-30", optional)' }
+      },
+      required: ['title']
+    }
+  },
 ]
 
 // ── Tool handlers ─────────────────────────────────────────────────────────────
@@ -546,6 +621,63 @@ async function handleTool(
       }
 
       return { fileId: input.fileId, name: meta.name, mimeType: meta.mimeType, content: content.slice(0, 8000) }
+    }
+
+    case 'send_email': {
+      requirePlan('tier1', 'Email sending')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      return {
+        action_queued: true,
+        message: `Email to ${input.to} queued for approval. You'll receive it in your Approvals queue.`,
+        preview: `To: ${input.to}\nSubject: ${input.subject}\n\n${(input.body as string).slice(0, 200)}...`
+      }
+    }
+
+    case 'create_label': {
+      requirePlan('tier1', 'Label creation')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      return {
+        action_queued: true,
+        message: `Label "${input.labelName}" queued for creation. Approve in your Approvals queue.`
+      }
+    }
+
+    case 'apply_label': {
+      requirePlan('tier1', 'Email organization')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      const threadCount = (input.threadIds as string[]).length
+      return {
+        action_queued: true,
+        message: `Applying label "${input.labelName}" to ${threadCount} email(s). Approve in your Approvals queue.`
+      }
+    }
+
+    case 'create_event': {
+      requirePlan('tier2', 'Calendar event creation')
+      const token = await getFreshToken(supabase, clientId, 'calendar')
+      if (!token) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
+
+      const startDate = new Date(input.startTime as string).toLocaleString()
+      return {
+        action_queued: true,
+        message: `Calendar event "${input.title}" on ${startDate} queued for creation. Approve in your Approvals queue.`,
+        preview: `Title: ${input.title}\nWhen: ${startDate}\nLocation: ${input.location || 'Not specified'}`
+      }
+    }
+
+    case 'create_task': {
+      requirePlan('tier2', 'Task creation')
+      return {
+        action_queued: true,
+        message: `Task "${input.title}" queued for creation. Approve in your Approvals queue.`,
+        preview: `Title: ${input.title}\nDue: ${input.dueDate || 'No due date'}\nDescription: ${(input.description as string || 'No description').slice(0, 100)}`
+      }
     }
 
     default:
