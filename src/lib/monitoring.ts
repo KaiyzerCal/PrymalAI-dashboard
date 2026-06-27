@@ -1,5 +1,5 @@
 // Monitoring and error tracking setup with Sentry
-import * as Sentry from 'npm:@sentry/react'
+import * as Sentry from '@sentry/react'
 import { useEffect } from 'react'
 
 const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN || ''
@@ -65,7 +65,7 @@ export function captureEvent(eventName: string, properties?: Record<string, unkn
     Sentry.captureMessage(eventName, 'info')
     // Additional context
     if (properties) {
-      Sentry.withScope((scope) => {
+      Sentry.withScope((scope: Sentry.Scope) => {
         Object.entries(properties).forEach(([key, value]) => {
           scope.setContext(key, { value })
         })
