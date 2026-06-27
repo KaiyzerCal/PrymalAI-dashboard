@@ -1,5 +1,6 @@
 // Monitoring and error tracking setup with Sentry
 import * as Sentry from '@sentry/react'
+import { Replay } from '@sentry/replay'
 import { useEffect } from 'react'
 
 const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN || ''
@@ -16,7 +17,7 @@ export function initializeMonitoring() {
     dsn: SENTRY_DSN,
     environment: ENVIRONMENT,
     integrations: [
-      new Sentry.Replay({
+      new Replay({
         maskAllText: true,
         blockAllMedia: true,
       }),
