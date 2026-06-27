@@ -238,12 +238,22 @@ const TOOLS: Anthropic.Tool[] = [
 
   // ── Tier 1: Label Management ──
   {
+    name: 'list_labels',
+    description: '[Tier 1+] List all Gmail labels for organizing emails.',
+    input_schema: {
+      type: 'object',
+      properties: {}
+    }
+  },
+  {
     name: 'create_label',
-    description: '[Tier 1+] Create a new Gmail label.',
+    description: '[Tier 1+] Create a new Gmail label for organizing emails.',
     input_schema: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'Label name (e.g., "Invoices", "Follow-up", "Important")' }
+        name: { type: 'string', description: 'Label name (e.g., "Invoices", "Follow-up", "Important")' },
+        labelListVisibility: { type: 'string', description: 'Whether to show in label list: "labelShow" or "labelHide"', default: 'labelShow' },
+        messageListVisibility: { type: 'string', description: 'Whether to show next to messages: "show" or "hide"', default: 'show' }
       },
       required: ['name']
     }
@@ -258,6 +268,110 @@ const TOOLS: Anthropic.Tool[] = [
         labelName: { type: 'string', description: 'Label name to apply' }
       },
       required: ['threadIds', 'labelName']
+    }
+  },
+  {
+    name: 'remove_label',
+    description: '[Tier 1+] Remove a label from one or more emails.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        threadIds: { type: 'array', items: { type: 'string' }, description: 'Gmail thread IDs' },
+        labelName: { type: 'string', description: 'Label name to remove' }
+      },
+      required: ['threadIds', 'labelName']
+    }
+  },
+  {
+    name: 'archive_email',
+    description: '[Tier 1+] Archive one or more emails (remove from inbox).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        threadIds: { type: 'array', items: { type: 'string' }, description: 'Gmail thread IDs to archive' }
+      },
+      required: ['threadIds']
+    }
+  },
+  {
+    name: 'delete_email',
+    description: '[Tier 1+] Permanently delete one or more emails.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        threadIds: { type: 'array', items: { type: 'string' }, description: 'Gmail thread IDs to delete' }
+      },
+      required: ['threadIds']
+    }
+  },
+  {
+    name: 'mark_as_read',
+    description: '[Tier 1+] Mark one or more emails as read.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        threadIds: { type: 'array', items: { type: 'string' }, description: 'Gmail thread IDs to mark as read' }
+      },
+      required: ['threadIds']
+    }
+  },
+  {
+    name: 'mark_as_unread',
+    description: '[Tier 1+] Mark one or more emails as unread.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        threadIds: { type: 'array', items: { type: 'string' }, description: 'Gmail thread IDs to mark as unread' }
+      },
+      required: ['threadIds']
+    }
+  },
+  {
+    name: 'create_filter',
+    description: '[Tier 1+] Create an email filter (auto-label, archive, delete based on criteria).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: 'Filter emails from this address (optional)' },
+        to: { type: 'string', description: 'Filter emails to this address (optional)' },
+        subject: { type: 'string', description: 'Filter by subject line (optional)' },
+        query: { type: 'string', description: 'Gmail search query for filter (optional)' },
+        action: { type: 'string', description: 'Action to take: "label", "archive", "delete", "skip_inbox"' },
+        label: { type: 'string', description: 'Label to apply (if action is "label")' }
+      },
+      required: ['action']
+    }
+  },
+  {
+    name: 'set_auto_reply',
+    description: '[Tier 1+] Set vacation/auto-reply message.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'Auto-reply message text' },
+        subject: { type: 'string', description: 'Subject line for auto-reply', default: 'Out of Office' },
+        startTime: { type: 'string', description: 'Start date/time (ISO 8601, optional)' },
+        endTime: { type: 'string', description: 'End date/time (ISO 8601, optional)' },
+        restrictToContacts: { type: 'boolean', description: 'Only reply to contacts in address book?', default: false },
+        restrictToDomain: { type: 'boolean', description: 'Only reply to same domain?', default: false }
+      },
+      required: ['message']
+    }
+  },
+  {
+    name: 'schedule_send',
+    description: '[Tier 1+] Schedule an email to send at a future time.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        to: { type: 'string', description: 'Recipient email address' },
+        subject: { type: 'string', description: 'Email subject line' },
+        body: { type: 'string', description: 'Email body (plain text or HTML)' },
+        sendAt: { type: 'string', description: 'When to send (ISO 8601 format)' },
+        cc: { type: 'string', description: 'CC recipients (comma-separated, optional)' },
+        bcc: { type: 'string', description: 'BCC recipients (comma-separated, optional)' }
+      },
+      required: ['to', 'subject', 'body', 'sendAt']
     }
   },
 
@@ -279,6 +393,36 @@ const TOOLS: Anthropic.Tool[] = [
     }
   },
 
+  // ── Tier 2: Calendar Events (Write) ──
+  {
+    name: 'update_event',
+    description: '[Tier 2+] Update an existing calendar event.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        eventId: { type: 'string', description: 'Calendar event ID' },
+        title: { type: 'string', description: 'New event title (optional)' },
+        startTime: { type: 'string', description: 'New start time (ISO 8601, optional)' },
+        endTime: { type: 'string', description: 'New end time (ISO 8601, optional)' },
+        description: { type: 'string', description: 'New description (optional)' },
+        location: { type: 'string', description: 'New location (optional)' },
+        attendees: { type: 'array', items: { type: 'string' }, description: 'New attendee list (optional)' }
+      },
+      required: ['eventId']
+    }
+  },
+  {
+    name: 'delete_event',
+    description: '[Tier 2+] Delete a calendar event.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        eventId: { type: 'string', description: 'Calendar event ID to delete' }
+      },
+      required: ['eventId']
+    }
+  },
+
   // ── Tier 2: Google Tasks ──
   {
     name: 'create_task',
@@ -291,6 +435,348 @@ const TOOLS: Anthropic.Tool[] = [
         dueDate: { type: 'string', description: 'Due date (ISO 8601 format, e.g., "2026-06-30", optional)' }
       },
       required: ['title']
+    }
+  },
+  {
+    name: 'list_tasks',
+    description: '[Tier 2+] List Google Tasks from task lists.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        maxResults: { type: 'number', default: 20, description: 'Number of tasks to return (max 100)' },
+        showCompleted: { type: 'boolean', default: false, description: 'Include completed tasks?' }
+      }
+    }
+  },
+  {
+    name: 'update_task',
+    description: '[Tier 2+] Update a Google Task.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'Task ID to update' },
+        title: { type: 'string', description: 'New task title (optional)' },
+        description: { type: 'string', description: 'New description (optional)' },
+        dueDate: { type: 'string', description: 'New due date (ISO 8601, optional)' },
+        status: { type: 'string', description: 'New status: "needsAction" or "completed"' }
+      },
+      required: ['taskId']
+    }
+  },
+  {
+    name: 'complete_task',
+    description: '[Tier 2+] Mark a task as complete.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'Task ID to mark complete' }
+      },
+      required: ['taskId']
+    }
+  },
+
+  // ── Tier 3: Google Drive ──
+  {
+    name: 'create_folder',
+    description: '[Tier 3+] Create a new Google Drive folder.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Folder name' },
+        parentFolderId: { type: 'string', description: 'Parent folder ID (optional, defaults to root)' }
+      },
+      required: ['name']
+    }
+  },
+  {
+    name: 'move_file',
+    description: '[Tier 3+] Move a file to a different folder in Google Drive.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fileId: { type: 'string', description: 'File ID to move' },
+        targetFolderId: { type: 'string', description: 'Target folder ID' }
+      },
+      required: ['fileId', 'targetFolderId']
+    }
+  },
+  {
+    name: 'delete_file',
+    description: '[Tier 3+] Delete a file from Google Drive.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fileId: { type: 'string', description: 'File ID to delete' },
+        permanently: { type: 'boolean', default: false, description: 'Permanently delete? (true) or move to trash? (false)' }
+      },
+      required: ['fileId']
+    }
+  },
+  {
+    name: 'rename_file',
+    description: '[Tier 3+] Rename a file in Google Drive.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fileId: { type: 'string', description: 'File ID' },
+        newName: { type: 'string', description: 'New file name' }
+      },
+      required: ['fileId', 'newName']
+    }
+  },
+  {
+    name: 'share_file',
+    description: '[Tier 3+] Share a file with others.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fileId: { type: 'string', description: 'File ID to share' },
+        emailAddresses: { type: 'array', items: { type: 'string' }, description: 'Email addresses to share with' },
+        role: { type: 'string', description: 'Permission level: "reader", "commenter", or "writer"', default: 'reader' },
+        sendNotification: { type: 'boolean', default: true, description: 'Send email notifications?' }
+      },
+      required: ['fileId', 'emailAddresses']
+    }
+  },
+  {
+    name: 'set_permissions',
+    description: '[Tier 3+] Set file permissions (public, restricted, etc).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fileId: { type: 'string', description: 'File ID' },
+        type: { type: 'string', description: 'Permission type: "user", "group", "domain", "anyone"' },
+        role: { type: 'string', description: 'Role: "reader", "commenter", "writer", "owner"' },
+        value: { type: 'string', description: 'Email (for user/group) or domain (for domain), optional for anyone' }
+      },
+      required: ['fileId', 'type', 'role']
+    }
+  },
+
+  // ── Tier 3: Google Docs ──
+  {
+    name: 'create_document',
+    description: '[Tier 3+] Create a new Google Doc.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Document title' },
+        content: { type: 'string', description: 'Initial document content (optional)' },
+        parentFolderId: { type: 'string', description: 'Parent folder ID (optional)' }
+      },
+      required: ['title']
+    }
+  },
+  {
+    name: 'update_document',
+    description: '[Tier 3+] Update content in a Google Doc.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        documentId: { type: 'string', description: 'Document ID' },
+        content: { type: 'string', description: 'New content or append' },
+        mode: { type: 'string', description: '"replace" entire doc or "append" to end', default: 'append' }
+      },
+      required: ['documentId', 'content']
+    }
+  },
+
+  // ── Tier 3: Google Sheets ──
+  {
+    name: 'create_sheet',
+    description: '[Tier 3+] Create a new Google Sheet.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Spreadsheet title' },
+        parentFolderId: { type: 'string', description: 'Parent folder ID (optional)' }
+      },
+      required: ['title']
+    }
+  },
+  {
+    name: 'update_sheet',
+    description: '[Tier 3+] Add or update data in a Google Sheet.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Spreadsheet ID' },
+        sheetName: { type: 'string', description: 'Sheet name (tab) to update', default: 'Sheet1' },
+        range: { type: 'string', description: 'Cell range (e.g., "A1:C10"), optional for appending' },
+        values: { type: 'array', description: 'Array of rows: [[col1, col2], [col1, col2]]' },
+        mode: { type: 'string', description: '"update" existing range or "append" new rows', default: 'append' }
+      },
+      required: ['spreadsheetId', 'values']
+    }
+  },
+
+  // ── Tier 3: Google Slides ──
+  {
+    name: 'create_slide',
+    description: '[Tier 3+] Create a new Google Slides presentation.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Presentation title' },
+        parentFolderId: { type: 'string', description: 'Parent folder ID (optional)' }
+      },
+      required: ['title']
+    }
+  },
+  {
+    name: 'update_slide',
+    description: '[Tier 3+] Add or edit a slide in a presentation.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        presentationId: { type: 'string', description: 'Presentation ID' },
+        slideIndex: { type: 'number', description: 'Slide number (0-based) or -1 for new slide' },
+        title: { type: 'string', description: 'Slide title (optional)' },
+        content: { type: 'string', description: 'Slide content/text (optional)' }
+      },
+      required: ['presentationId']
+    }
+  },
+
+  // ── Tier 4: Google Meet ──
+  {
+    name: 'schedule_meet',
+    description: '[Tier 4] Schedule a Google Meet call and add to calendar.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Meeting title' },
+        startTime: { type: 'string', description: 'Start time (ISO 8601)' },
+        endTime: { type: 'string', description: 'End time (ISO 8601)' },
+        attendees: { type: 'array', items: { type: 'string' }, description: 'Attendee email addresses' },
+        description: { type: 'string', description: 'Meeting description (optional)' }
+      },
+      required: ['title', 'startTime', 'endTime']
+    }
+  },
+
+  // ── Tier 4: Google Contacts ──
+  {
+    name: 'create_contact',
+    description: '[Tier 4] Create a new contact in Google Contacts.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        givenName: { type: 'string', description: 'First name' },
+        familyName: { type: 'string', description: 'Last name' },
+        email: { type: 'string', description: 'Email address (optional)' },
+        phone: { type: 'string', description: 'Phone number (optional)' },
+        company: { type: 'string', description: 'Company name (optional)' },
+        jobTitle: { type: 'string', description: 'Job title (optional)' },
+        notes: { type: 'string', description: 'Notes (optional)' }
+      },
+      required: ['givenName', 'familyName']
+    }
+  },
+  {
+    name: 'update_contact',
+    description: '[Tier 4] Update a contact in Google Contacts.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        resourceName: { type: 'string', description: 'Contact resource name (from list)' },
+        givenName: { type: 'string', description: 'First name (optional)' },
+        familyName: { type: 'string', description: 'Last name (optional)' },
+        email: { type: 'string', description: 'Email address (optional)' },
+        phone: { type: 'string', description: 'Phone number (optional)' },
+        company: { type: 'string', description: 'Company name (optional)' },
+        jobTitle: { type: 'string', description: 'Job title (optional)' },
+        notes: { type: 'string', description: 'Notes (optional)' }
+      },
+      required: ['resourceName']
+    }
+  },
+  {
+    name: 'delete_contact',
+    description: '[Tier 4] Delete a contact from Google Contacts.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        resourceName: { type: 'string', description: 'Contact resource name' }
+      },
+      required: ['resourceName']
+    }
+  },
+  {
+    name: 'list_contacts',
+    description: '[Tier 4] List contacts from Google Contacts.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        maxResults: { type: 'number', default: 50, description: 'Number of contacts (max 1000)' },
+        query: { type: 'string', description: 'Search query (optional)' }
+      }
+    }
+  },
+
+  // ── Tier 4: Google Business Profile ──
+  {
+    name: 'respond_to_review',
+    description: '[Tier 4] Respond to a Google Business Profile review.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        reviewId: { type: 'string', description: 'Review ID to respond to' },
+        responseText: { type: 'string', description: 'Your response message' }
+      },
+      required: ['reviewId', 'responseText']
+    }
+  },
+  {
+    name: 'create_post',
+    description: '[Tier 4] Create a post on Google Business Profile.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Post title' },
+        content: { type: 'string', description: 'Post content/description' },
+        type: { type: 'string', description: 'Post type: "STANDARD", "EVENT", "OFFER", "PRODUCT"', default: 'STANDARD' },
+        callToAction: { type: 'string', description: 'Call-to-action button: "CALL", "BOOK", "ORDER"', default: 'BOOK' }
+      },
+      required: ['title', 'content']
+    }
+  },
+
+  // ── Tier 4: Google Photos ──
+  {
+    name: 'upload_photo',
+    description: '[Tier 4] Upload a photo to Google Photos.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        photoUrl: { type: 'string', description: 'URL of photo to upload' },
+        description: { type: 'string', description: 'Photo description (optional)' }
+      },
+      required: ['photoUrl']
+    }
+  },
+  {
+    name: 'create_album',
+    description: '[Tier 4] Create an album in Google Photos.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Album title' },
+        description: { type: 'string', description: 'Album description (optional)' }
+      },
+      required: ['title']
+    }
+  },
+  {
+    name: 'organize_photos',
+    description: '[Tier 4] Add photos to an album in Google Photos.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        albumId: { type: 'string', description: 'Album ID' },
+        photoIds: { type: 'array', items: { type: 'string' }, description: 'Photo IDs to add' }
+      },
+      required: ['albumId', 'photoIds']
     }
   },
 ]
@@ -623,16 +1109,63 @@ async function handleTool(
       return { fileId: input.fileId, name: meta.name, mimeType: meta.mimeType, content: content.slice(0, 8000) }
     }
 
+    // ── Tier 1: Email Composition ──
+
     case 'send_email': {
       requirePlan('tier1', 'Email sending')
       const token = await getFreshToken(supabase, clientId, 'gmail')
       if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
 
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'send_email',
+          summary: `Email to ${input.to}: ${input.subject}`,
+          draft_content: input.body,
+          metadata: {
+            to: input.to,
+            cc: input.cc || '',
+            bcc: input.bcc || '',
+            subject: input.subject,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
       return {
-        action_queued: true,
-        message: `Email to ${input.to} queued for approval. You'll receive it in your Approvals queue.`,
-        preview: `To: ${input.to}\nSubject: ${input.subject}\n\n${(input.body as string).slice(0, 200)}...`
+        queued: true,
+        id: data.id,
+        message: `Email queued for approval. You'll see it in the Approvals tab.`,
+        preview: {
+          to: input.to,
+          subject: input.subject,
+          snippet: (input.body as string).slice(0, 200) + (((input.body as string).length > 200) ? '...' : '')
+        }
       }
+    }
+
+    case 'list_labels': {
+      requirePlan('tier1', 'Gmail')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (data.error) return { error: data.error.message }
+
+      const labels = (data.labels ?? []).filter((l: Record<string, unknown>) => l.type !== 'system').map((l: Record<string, unknown>) => ({
+        id: l.id,
+        name: l.name,
+        messageCount: l.messagesTotal ?? 0,
+        unreadCount: l.messagesUnread ?? 0,
+      }))
+      return { count: labels.length, labels }
     }
 
     case 'create_label': {
@@ -640,9 +1173,29 @@ async function handleTool(
       const token = await getFreshToken(supabase, clientId, 'gmail')
       if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
 
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'create_label',
+          summary: `Create label: ${input.name}`,
+          draft_content: `Label name: ${input.name}\nShow in label list: ${input.labelListVisibility === 'labelShow' ? 'Yes' : 'No'}\nShow in messages: ${input.messageListVisibility === 'show' ? 'Yes' : 'No'}`,
+          metadata: {
+            name: input.name,
+            labelListVisibility: input.labelListVisibility || 'labelShow',
+            messageListVisibility: input.messageListVisibility || 'show',
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
       return {
-        action_queued: true,
-        message: `Label "${input.labelName}" queued for creation. Approve in your Approvals queue.`
+        queued: true,
+        id: data.id,
+        message: `Label creation queued. Approve in the Approvals tab.`
       }
     }
 
@@ -652,11 +1205,283 @@ async function handleTool(
       if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
 
       const threadCount = (input.threadIds as string[]).length
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'apply_label',
+          summary: `Apply label "${input.labelName}" to ${threadCount} email(s)`,
+          draft_content: `Label: ${input.labelName}\nThreads: ${threadCount}`,
+          metadata: {
+            threadIds: input.threadIds,
+            labelName: input.labelName,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
       return {
-        action_queued: true,
-        message: `Applying label "${input.labelName}" to ${threadCount} email(s). Approve in your Approvals queue.`
+        queued: true,
+        id: data.id,
+        message: `Labeling operation queued. Approve in the Approvals tab.`
       }
     }
+
+    case 'remove_label': {
+      requirePlan('tier1', 'Email organization')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      const threadCount = (input.threadIds as string[]).length
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'remove_label',
+          summary: `Remove label "${input.labelName}" from ${threadCount} email(s)`,
+          draft_content: `Label: ${input.labelName}\nThreads: ${threadCount}`,
+          metadata: {
+            threadIds: input.threadIds,
+            labelName: input.labelName,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Label removal queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'archive_email': {
+      requirePlan('tier1', 'Email management')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      const threadCount = (input.threadIds as string[]).length
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'archive_email',
+          summary: `Archive ${threadCount} email(s)`,
+          draft_content: `Archiving ${threadCount} emails from inbox.`,
+          metadata: { threadIds: input.threadIds },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Archive operation queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'delete_email': {
+      requirePlan('tier1', 'Email management')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      const threadCount = (input.threadIds as string[]).length
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'delete_email',
+          summary: `Delete ${threadCount} email(s)`,
+          draft_content: `Permanently deleting ${threadCount} emails.`,
+          metadata: { threadIds: input.threadIds },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Email deletion queued. Approve in the Approvals tab. ⚠️ This action is permanent.`
+      }
+    }
+
+    case 'mark_as_read': {
+      requirePlan('tier1', 'Email management')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      const threadCount = (input.threadIds as string[]).length
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'mark_as_read',
+          summary: `Mark ${threadCount} email(s) as read`,
+          draft_content: `Marking ${threadCount} emails as read.`,
+          metadata: { threadIds: input.threadIds },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Mark as read queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'mark_as_unread': {
+      requirePlan('tier1', 'Email management')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      const threadCount = (input.threadIds as string[]).length
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'mark_as_unread',
+          summary: `Mark ${threadCount} email(s) as unread`,
+          draft_content: `Marking ${threadCount} emails as unread.`,
+          metadata: { threadIds: input.threadIds },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Mark as unread queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'create_filter': {
+      requirePlan('tier1', 'Email filters')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      const criteria = []
+      if (input.from) criteria.push(`From: ${input.from}`)
+      if (input.to) criteria.push(`To: ${input.to}`)
+      if (input.subject) criteria.push(`Subject: ${input.subject}`)
+      if (input.query) criteria.push(`Query: ${input.query}`)
+
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'create_filter',
+          summary: `Create filter: ${input.action}`,
+          draft_content: `Criteria:\n${criteria.join('\n')}\n\nAction: ${input.action}${input.label ? `\nLabel: ${input.label}` : ''}`,
+          metadata: {
+            from: input.from,
+            to: input.to,
+            subject: input.subject,
+            query: input.query,
+            action: input.action,
+            label: input.label,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Email filter queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'set_auto_reply': {
+      requirePlan('tier1', 'Auto-reply')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'set_auto_reply',
+          summary: `Set auto-reply`,
+          draft_content: `Subject: ${input.subject}\n\n${input.message}${input.startTime ? `\n\nActive: ${input.startTime} to ${input.endTime}` : ''}`,
+          metadata: {
+            message: input.message,
+            subject: input.subject,
+            startTime: input.startTime,
+            endTime: input.endTime,
+            restrictToContacts: input.restrictToContacts,
+            restrictToDomain: input.restrictToDomain,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Auto-reply queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'schedule_send': {
+      requirePlan('tier1', 'Schedule send')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      const sendDate = new Date(input.sendAt as string).toLocaleString()
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'schedule_send',
+          summary: `Schedule email to ${input.to} for ${sendDate}`,
+          draft_content: `To: ${input.to}\nSubject: ${input.subject}\nSend at: ${sendDate}\n\n${(input.body as string).slice(0, 300)}...`,
+          metadata: {
+            to: input.to,
+            cc: input.cc,
+            bcc: input.bcc,
+            subject: input.subject,
+            sendAt: input.sendAt,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Email scheduled. Approve in the Approvals tab.`
+      }
+    }
+
+    // ── Tier 2: Calendar Events ──
 
     case 'create_event': {
       requirePlan('tier2', 'Calendar event creation')
@@ -664,19 +1489,810 @@ async function handleTool(
       if (!token) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
 
       const startDate = new Date(input.startTime as string).toLocaleString()
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'create_event',
+          summary: `Calendar: ${input.title}`,
+          draft_content: `Title: ${input.title}\nWhen: ${startDate}\nLocation: ${input.location || 'Not specified'}\nAttendees: ${((input.attendees as string[]) ?? []).join(', ') || 'None'}${input.description ? `\n\nDescription: ${input.description}` : ''}`,
+          metadata: {
+            title: input.title,
+            startTime: input.startTime,
+            endTime: input.endTime,
+            location: input.location,
+            attendees: input.attendees,
+            description: input.description,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
       return {
-        action_queued: true,
-        message: `Calendar event "${input.title}" on ${startDate} queued for creation. Approve in your Approvals queue.`,
-        preview: `Title: ${input.title}\nWhen: ${startDate}\nLocation: ${input.location || 'Not specified'}`
+        queued: true,
+        id: data.id,
+        message: `Calendar event queued. Approve in the Approvals tab.`
       }
     }
 
+    case 'update_event': {
+      requirePlan('tier2', 'Calendar event management')
+      const token = await getFreshToken(supabase, clientId, 'calendar')
+      if (!token) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
+
+      const changes = []
+      if (input.title) changes.push(`Title: ${input.title}`)
+      if (input.startTime) changes.push(`Start: ${new Date(input.startTime as string).toLocaleString()}`)
+      if (input.location) changes.push(`Location: ${input.location}`)
+      if (input.description) changes.push(`Description: ${(input.description as string).slice(0, 100)}...`)
+
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'update_event',
+          summary: `Update event: ${input.eventId}`,
+          draft_content: `Changes:\n${changes.join('\n')}`,
+          metadata: {
+            eventId: input.eventId,
+            title: input.title,
+            startTime: input.startTime,
+            endTime: input.endTime,
+            location: input.location,
+            attendees: input.attendees,
+            description: input.description,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Event update queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'delete_event': {
+      requirePlan('tier2', 'Calendar event management')
+      const token = await getFreshToken(supabase, clientId, 'calendar')
+      if (!token) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
+
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'delete_event',
+          summary: `Delete event: ${input.eventId}`,
+          draft_content: `Deleting calendar event ${input.eventId}.`,
+          metadata: { eventId: input.eventId },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Event deletion queued. Approve in the Approvals tab.`
+      }
+    }
+
+    // ── Tier 2: Google Tasks ──
+
     case 'create_task': {
       requirePlan('tier2', 'Task creation')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'create_task',
+          summary: `Task: ${input.title}`,
+          draft_content: `Title: ${input.title}${input.dueDate ? `\nDue: ${input.dueDate}` : ''}${input.description ? `\nDescription: ${input.description}` : ''}`,
+          metadata: {
+            title: input.title,
+            description: input.description,
+            dueDate: input.dueDate,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
       return {
-        action_queued: true,
-        message: `Task "${input.title}" queued for creation. Approve in your Approvals queue.`,
-        preview: `Title: ${input.title}\nDue: ${input.dueDate || 'No due date'}\nDescription: ${(input.description as string || 'No description').slice(0, 100)}`
+        queued: true,
+        id: data.id,
+        message: `Task creation queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'list_tasks': {
+      requirePlan('tier2', 'Google Tasks')
+      // This would normally require Google Tasks API - for now return a placeholder
+      return {
+        message: 'Google Tasks list functionality coming soon.',
+        tasks: []
+      }
+    }
+
+    case 'update_task': {
+      requirePlan('tier2', 'Task management')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'update_task',
+          summary: `Update task: ${input.taskId}`,
+          draft_content: `Updating task${input.title ? ` to "${input.title}"` : ''}${input.status === 'completed' ? ' and marking as complete' : ''}`,
+          metadata: {
+            taskId: input.taskId,
+            title: input.title,
+            description: input.description,
+            dueDate: input.dueDate,
+            status: input.status,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Task update queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'complete_task': {
+      requirePlan('tier2', 'Task management')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'complete_task',
+          summary: `Complete task: ${input.taskId}`,
+          draft_content: `Marking task as complete.`,
+          metadata: { taskId: input.taskId },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Task marked as complete. Approve in the Approvals tab.`
+      }
+    }
+
+    // ── Tier 3: Google Drive ──
+
+    case 'create_folder': {
+      requirePlan('tier3', 'Drive management')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'create_folder',
+          summary: `Create folder: ${input.name}`,
+          draft_content: `Creating Google Drive folder: ${input.name}`,
+          metadata: {
+            name: input.name,
+            parentFolderId: input.parentFolderId,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Folder creation queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'move_file': {
+      requirePlan('tier3', 'Drive management')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'move_file',
+          summary: `Move file to folder`,
+          draft_content: `Moving file ${input.fileId} to folder ${input.targetFolderId}`,
+          metadata: {
+            fileId: input.fileId,
+            targetFolderId: input.targetFolderId,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `File move queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'delete_file': {
+      requirePlan('tier3', 'Drive management')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'delete_file',
+          summary: `Delete file`,
+          draft_content: `${input.permanently ? 'Permanently deleting' : 'Trashing'} file ${input.fileId}`,
+          metadata: {
+            fileId: input.fileId,
+            permanently: input.permanently,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `File deletion queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'rename_file': {
+      requirePlan('tier3', 'Drive management')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'rename_file',
+          summary: `Rename file to: ${input.newName}`,
+          draft_content: `Renaming file ${input.fileId} to "${input.newName}"`,
+          metadata: {
+            fileId: input.fileId,
+            newName: input.newName,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `File rename queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'share_file': {
+      requirePlan('tier3', 'Drive sharing')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'share_file',
+          summary: `Share file with ${(input.emailAddresses as string[]).length} recipient(s)`,
+          draft_content: `Sharing file ${input.fileId} as ${input.role}:\n${(input.emailAddresses as string[]).join('\n')}`,
+          metadata: {
+            fileId: input.fileId,
+            emailAddresses: input.emailAddresses,
+            role: input.role,
+            sendNotification: input.sendNotification,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `File sharing queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'set_permissions': {
+      requirePlan('tier3', 'Drive permissions')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'set_permissions',
+          summary: `Set ${input.type} permission: ${input.role}`,
+          draft_content: `Setting ${input.type} permission (${input.role}) on file ${input.fileId}${input.value ? ` for ${input.value}` : ''}`,
+          metadata: {
+            fileId: input.fileId,
+            type: input.type,
+            role: input.role,
+            value: input.value,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Permission change queued. Approve in the Approvals tab.`
+      }
+    }
+
+    // ── Tier 3: Google Docs ──
+
+    case 'create_document': {
+      requirePlan('tier3', 'Google Docs')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'create_document',
+          summary: `Create Google Doc: ${input.title}`,
+          draft_content: `Creating Google Doc titled "${input.title}"${input.content ? `\n\nInitial content:\n${(input.content as string).slice(0, 300)}...` : ''}`,
+          metadata: {
+            title: input.title,
+            content: input.content,
+            parentFolderId: input.parentFolderId,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Document creation queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'update_document': {
+      requirePlan('tier3', 'Google Docs')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'update_document',
+          summary: `Update Google Doc`,
+          draft_content: `${input.mode === 'replace' ? 'Replacing' : 'Appending to'} document content:\n${(input.content as string).slice(0, 300)}...`,
+          metadata: {
+            documentId: input.documentId,
+            content: input.content,
+            mode: input.mode,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Document update queued. Approve in the Approvals tab.`
+      }
+    }
+
+    // ── Tier 3: Google Sheets ──
+
+    case 'create_sheet': {
+      requirePlan('tier3', 'Google Sheets')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'create_sheet',
+          summary: `Create Google Sheet: ${input.title}`,
+          draft_content: `Creating Google Sheet titled "${input.title}"`,
+          metadata: {
+            title: input.title,
+            parentFolderId: input.parentFolderId,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Sheet creation queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'update_sheet': {
+      requirePlan('tier3', 'Google Sheets')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'update_sheet',
+          summary: `Update Google Sheet data`,
+          draft_content: `${input.mode === 'append' ? 'Appending' : 'Updating'} ${(input.values as unknown[][]).length} row(s) to "${input.sheetName}"`,
+          metadata: {
+            spreadsheetId: input.spreadsheetId,
+            sheetName: input.sheetName,
+            range: input.range,
+            values: input.values,
+            mode: input.mode,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Sheet update queued. Approve in the Approvals tab.`
+      }
+    }
+
+    // ── Tier 3: Google Slides ──
+
+    case 'create_slide': {
+      requirePlan('tier3', 'Google Slides')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'create_slide',
+          summary: `Create Google Slides: ${input.title}`,
+          draft_content: `Creating Google Slides presentation titled "${input.title}"`,
+          metadata: {
+            title: input.title,
+            parentFolderId: input.parentFolderId,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Presentation creation queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'update_slide': {
+      requirePlan('tier3', 'Google Slides')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'update_slide',
+          summary: `Update slide`,
+          draft_content: `${input.slideIndex === -1 ? 'Adding new slide' : `Updating slide ${input.slideIndex}`}${input.title ? ` with title "${input.title}"` : ''}`,
+          metadata: {
+            presentationId: input.presentationId,
+            slideIndex: input.slideIndex,
+            title: input.title,
+            content: input.content,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Slide update queued. Approve in the Approvals tab.`
+      }
+    }
+
+    // ── Tier 4: Google Meet ──
+
+    case 'schedule_meet': {
+      requirePlan('tier4', 'Google Meet')
+      const startDate = new Date(input.startTime as string).toLocaleString()
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'schedule_meet',
+          summary: `Schedule Meet: ${input.title}`,
+          draft_content: `Meeting: ${input.title}\nWhen: ${startDate}\nAttendees: ${((input.attendees as string[]) ?? []).join(', ') || 'TBD'}${input.description ? `\n\nDescription: ${input.description}` : ''}`,
+          metadata: {
+            title: input.title,
+            startTime: input.startTime,
+            endTime: input.endTime,
+            attendees: input.attendees,
+            description: input.description,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Meet scheduling queued. Approve in the Approvals tab.`
+      }
+    }
+
+    // ── Tier 4: Google Contacts ──
+
+    case 'create_contact': {
+      requirePlan('tier4', 'Google Contacts')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'create_contact',
+          summary: `Create contact: ${input.givenName} ${input.familyName}`,
+          draft_content: `Creating contact:\nName: ${input.givenName} ${input.familyName}\nEmail: ${input.email || 'Not provided'}\nPhone: ${input.phone || 'Not provided'}\nCompany: ${input.company || 'Not provided'}\nTitle: ${input.jobTitle || 'Not provided'}${input.notes ? `\nNotes: ${input.notes}` : ''}`,
+          metadata: {
+            givenName: input.givenName,
+            familyName: input.familyName,
+            email: input.email,
+            phone: input.phone,
+            company: input.company,
+            jobTitle: input.jobTitle,
+            notes: input.notes,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Contact creation queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'update_contact': {
+      requirePlan('tier4', 'Google Contacts')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'update_contact',
+          summary: `Update contact`,
+          draft_content: `Updating contact with new information`,
+          metadata: {
+            resourceName: input.resourceName,
+            givenName: input.givenName,
+            familyName: input.familyName,
+            email: input.email,
+            phone: input.phone,
+            company: input.company,
+            jobTitle: input.jobTitle,
+            notes: input.notes,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Contact update queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'delete_contact': {
+      requirePlan('tier4', 'Google Contacts')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'delete_contact',
+          summary: `Delete contact`,
+          draft_content: `Deleting contact from Google Contacts`,
+          metadata: { resourceName: input.resourceName },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Contact deletion queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'list_contacts': {
+      requirePlan('tier4', 'Google Contacts')
+      // This would normally require Google Contacts API - for now return a placeholder
+      return {
+        message: 'Google Contacts list functionality coming soon.',
+        contacts: []
+      }
+    }
+
+    // ── Tier 4: Google Business Profile ──
+
+    case 'respond_to_review': {
+      requirePlan('tier4', 'Business Profile')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'respond_to_review',
+          summary: `Respond to review`,
+          draft_content: input.responseText,
+          metadata: {
+            reviewId: input.reviewId,
+            responseText: input.responseText,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Review response queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'create_post': {
+      requirePlan('tier4', 'Business Profile')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'create_post',
+          summary: `GBP post: ${input.title}`,
+          draft_content: `${input.title}\n\n${input.content}${input.callToAction ? `\n\nCTA: ${input.callToAction}` : ''}`,
+          metadata: {
+            title: input.title,
+            content: input.content,
+            type: input.type,
+            callToAction: input.callToAction,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `GBP post creation queued. Approve in the Approvals tab.`
+      }
+    }
+
+    // ── Tier 4: Google Photos ──
+
+    case 'upload_photo': {
+      requirePlan('tier4', 'Google Photos')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'upload_photo',
+          summary: `Upload photo to Google Photos`,
+          draft_content: `Uploading photo${input.description ? `: ${input.description}` : ''}`,
+          metadata: {
+            photoUrl: input.photoUrl,
+            description: input.description,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Photo upload queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'create_album': {
+      requirePlan('tier4', 'Google Photos')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'create_album',
+          summary: `Create album: ${input.title}`,
+          draft_content: `Creating album "${input.title}"${input.description ? `\nDescription: ${input.description}` : ''}`,
+          metadata: {
+            title: input.title,
+            description: input.description,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Album creation queued. Approve in the Approvals tab.`
+      }
+    }
+
+    case 'organize_photos': {
+      requirePlan('tier4', 'Google Photos')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'organize_photos',
+          summary: `Add ${(input.photoIds as string[]).length} photo(s) to album`,
+          draft_content: `Adding ${(input.photoIds as string[]).length} photos to album ${input.albumId}`,
+          metadata: {
+            albumId: input.albumId,
+            photoIds: input.photoIds,
+          },
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+
+      return {
+        queued: true,
+        id: data.id,
+        message: `Photo organization queued. Approve in the Approvals tab.`
       }
     }
 
