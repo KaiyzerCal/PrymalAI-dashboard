@@ -12,12 +12,12 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// Product IDs from Stripe (must be created in Stripe dashboard)
+// Product IDs from Stripe
 const TIER_PRODUCTS: Record<string, { productId: string; priceId: string; name: string }> = {
-  tier1: { productId: 'prod_tier1', priceId: 'price_tier1_monthly', name: 'Tier 1 - Email Management' },
-  tier2: { productId: 'prod_tier2', priceId: 'price_tier2_monthly', name: 'Tier 2 - Calendar & Tasks' },
-  tier3: { productId: 'prod_tier3', priceId: 'price_tier3_monthly', name: 'Tier 3 - Drive & Docs' },
-  tier4: { productId: 'prod_tier4', priceId: 'price_tier4_monthly', name: 'Tier 4 - Full Access' },
+  tier1: { productId: 'prod_UmbUZ2NASZSR1D', priceId: 'price_1Tn2I5Er3TvCaWKF0s9jjuwR', name: 'Tier 1 - Email Management' },
+  tier2: { productId: 'prod_UmbU1XY7wiWHZ4', priceId: 'price_1Tn2I7Er3TvCaWKF3I1THG4O', name: 'Tier 2 - Calendar & Tasks' },
+  tier3: { productId: 'prod_UmbU26BC8sMYhf', priceId: 'price_1Tn2I9Er3TvCaWKFAG5p0PlU', name: 'Tier 3 - Drive & Docs' },
+  tier4: { productId: 'prod_UmbUsj4DRsyIQl', priceId: 'price_1Tn2IBEr3TvCaWKFfwvbpPED', name: 'Tier 4 - Full Access' },
 }
 
 Deno.serve(async (req) => {
