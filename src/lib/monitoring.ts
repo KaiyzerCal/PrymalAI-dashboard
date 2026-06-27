@@ -1,12 +1,11 @@
 // Monitoring and error tracking setup with Sentry
 import * as Sentry from '@sentry/react'
-import { Replay } from '@sentry/replay'
 import { useEffect } from 'react'
 
 const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN || ''
 const ENVIRONMENT = import.meta.env.MODE || 'production'
 
-// Initialize Sentry for error tracking and performance monitoring
+// Initialize Sentry for error tracking
 export function initializeMonitoring() {
   if (!SENTRY_DSN) {
     console.warn('SENTRY_DSN not configured. Error tracking disabled.')
@@ -16,16 +15,7 @@ export function initializeMonitoring() {
   Sentry.init({
     dsn: SENTRY_DSN,
     environment: ENVIRONMENT,
-    integrations: [
-      new Replay({
-        maskAllText: true,
-        blockAllMedia: true,
-      }),
-      new Sentry.BrowserTracing(),
-    ],
     tracesSampleRate: ENVIRONMENT === 'production' ? 0.1 : 1.0, // 10% in production, 100% in dev
-    replaysSessionSampleRate: ENVIRONMENT === 'production' ? 0.1 : 1.0,
-    replaysOnErrorSampleRate: 1.0, // Always capture replays on error
   })
 }
 
