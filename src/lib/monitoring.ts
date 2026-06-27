@@ -128,8 +128,6 @@ export async function healthCheck(): Promise<{ status: 'ok' | 'degraded' | 'down
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: 'health' }),
     })
-    // Just check if endpoint is reachable
-    if (response.status === 401) return // Unauthorized is OK (means function exists)
     if (!response.ok && response.status !== 401) {
       errors.push('prymal-chat function unavailable')
     }
