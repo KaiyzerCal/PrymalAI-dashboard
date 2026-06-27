@@ -194,12 +194,12 @@ export function OnboardingPage() {
               ))}
               <div>
                 <label className="block text-xs font-semibold tracking-widest mb-1.5" style={{ color: 'rgba(0,212,255,0.5)' }}>INDUSTRY</label>
-                <select {...field('industry')} className={inputClass} style={{ ...inputStyle, colorScheme: 'dark', color: '#ffffff', backgroundColor: 'rgba(0,212,255,0.04)' }}
+                <select {...field('industry')} className={inputClass} style={{ ...inputStyle, colorScheme: 'light', color: '#000000', backgroundColor: '#ffffff' }}
                   onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.4)' }}
                   onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.12)' }}
                 >
-                  <option value="" style={{ color: '#ffffff', backgroundColor: '#1a1a2e' }}>Select industry…</option>
-                  {INDUSTRIES.map(i => <option key={i} value={i} style={{ color: '#ffffff', backgroundColor: '#1a1a2e' }}>{i}</option>)}
+                  <option value="">Select industry…</option>
+                  {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
                 </select>
               </div>
             </div>
