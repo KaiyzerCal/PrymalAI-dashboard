@@ -1,12 +1,17 @@
 import type { LucideIcon } from 'lucide-react'
 import { Globe, Sparkles, Mail, MessageCircle, TrendingUp, CalendarCheck } from 'lucide-react'
 
+export interface Capability {
+  name: string
+  minTier?: 'tier1' | 'tier2' | 'tier3' | 'tier4'
+}
+
 export interface AgentDef {
   id: string
   name: string
   tagline: string
   description: string
-  capabilities: string[]
+  capabilities: (string | Capability)[]
   color: {
     text: string
     bg: string
@@ -20,9 +25,18 @@ export const AGENTS: AgentDef[] = [
   {
     id: 'google',
     name: 'Google Agent',
-    tagline: 'Local presence & reputation management',
-    description: 'Monitors your Google Business Profile around the clock. Drafts review responses in your brand voice, publishes local posts, and tracks your local search visibility so you never miss a reputation moment.',
-    capabilities: ['Review response drafting', 'Google Business Posts', 'Rating monitoring', 'Local SEO tracking'],
+    tagline: 'Workspace automation & productivity',
+    description: 'Automates your entire Google Workspace. Read and manage emails, schedule calendars, organize files, create documents, and automate your digital workflow around the clock.',
+    capabilities: [
+      { name: 'Email management', minTier: 'tier1' },
+      { name: 'Calendar scheduling', minTier: 'tier2' },
+      { name: 'Google Tasks', minTier: 'tier2' },
+      { name: 'Drive & file management', minTier: 'tier3' },
+      { name: 'Docs, Sheets, Slides', minTier: 'tier3' },
+      { name: 'Google Meet scheduling', minTier: 'tier4' },
+      { name: 'Contacts & Photos', minTier: 'tier4' },
+      { name: 'Google Business Profile', minTier: 'tier4' },
+    ],
     color: { text: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', dot: 'bg-blue-400' },
     icon: Globe,
   },
