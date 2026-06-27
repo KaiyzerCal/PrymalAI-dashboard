@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase, FUNCTION_BASE } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { Check, ChevronDown } from 'lucide-react'
 
 const PLANS = [
