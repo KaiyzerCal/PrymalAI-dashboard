@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { Mail, Calendar, HardDrive, Shield, Zap, ChevronRight, Star } from 'lucide-react'
+import { getAvailableTiers } from '@/lib/tierConfig'
 
 const FEATURES = [
   {
@@ -24,66 +25,19 @@ const FEATURES = [
   },
 ]
 
-const PRICING = [
-  {
-    name: 'Tier 1',
-    price: '$17',
+// Build pricing from tier configs
+const PRICING = getAvailableTiers()
+  .filter(tier => tier.level !== 'free')
+  .map(tier => ({
+    name: tier.name,
+    price: `$${tier.price}`,
     period: '/mo',
-    description: 'Email mastery',
-    features: [
-      'AI email composition & drafting',
-      'Read, send, manage emails',
-      'Labels, filters, threads, attachments',
-      'Schedule sends & auto-reply',
-    ],
+    description: tier.description,
+    features: tier.features.slice(0, 5), // Show first 5 features
+    apis: tier.apis,
     cta: 'Start free trial',
-    highlight: false,
-  },
-  {
-    name: 'Tier 2',
-    price: '$47',
-    period: '/mo',
-    description: 'Everything in Tier 1 +',
-    features: [
-      'Everything in Tier 1',
-      'Calendar management & scheduling',
-      'Google Tasks integration',
-      'Appointment automation',
-    ],
-    cta: 'Start free trial',
-    highlight: false,
-  },
-  {
-    name: 'Tier 3',
-    price: '$97',
-    period: '/mo',
-    description: 'Everything in Tier 2 +',
-    features: [
-      'Everything in Tier 2',
-      'Google Drive management',
-      'Google Docs (create, edit, share)',
-      'Google Sheets (data, logging, reports)',
-      'Google Slides (presentations)',
-    ],
-    cta: 'Start free trial',
-    highlight: true,
-  },
-  {
-    name: 'Tier 4',
-    price: '$147',
-    period: '/mo',
-    description: 'Everything in Tier 3 +',
-    features: [
-      'Everything in Tier 3',
-      'Google Meet scheduling',
-      'Google Contacts management',
-      'Google Photos organization',
-      'Google Business Profile (reviews, posts, reputation)',
-    ],
-    cta: 'Start free trial',
-    highlight: false,
-  },
-]
+    highlight: tier.level === 'tier3',
+  }))
 
 const TESTIMONIALS = [
   {
@@ -360,6 +314,8 @@ export function LandingPage() {
                   </div>
                   <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>{p.description}</p>
                 </div>
+
+                {/* Features */}
                 <ul className="flex flex-col gap-2.5">
                   {p.features.map((f, j) => (
                     <li key={j} className="flex items-start gap-2 text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>
@@ -368,6 +324,28 @@ export function LandingPage() {
                     </li>
                   ))}
                 </ul>
+
+                {/* APIs */}
+                {p.apis && p.apis.length > 0 && (
+                  <div className="pt-2 border-t" style={{ borderColor: 'rgba(0,212,255,0.1)' }}>
+                    <p className="text-xs font-semibold mb-2" style={{ color: 'rgba(0,212,255,0.6)' }}>GOOGLE APIS</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {p.apis.map((api, j) => (
+                        <span
+                          key={j}
+                          className="text-xs px-2 py-1 rounded"
+                          style={{
+                            background: 'rgba(0,212,255,0.08)',
+                            border: '1px solid rgba(0,212,255,0.15)',
+                            color: 'rgba(0,212,255,0.7)',
+                          }}
+                        >
+                          {api}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <button
                   onClick={() => navigate('/login')}
                   className="mt-auto w-full py-3 rounded-xl text-sm font-bold tracking-wide transition-all"
