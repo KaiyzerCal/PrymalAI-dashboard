@@ -1,8 +1,9 @@
 import { useState, useEffect, type ReactNode, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useClient } from '@/hooks/useClient'
-import { CheckCircle, Globe, ChevronDown, CreditCard, Zap, Mail, Calendar, HardDrive, Edit2 } from 'lucide-react'
+import { CheckCircle, Globe, ChevronDown, CreditCard, Zap, Mail, Calendar, HardDrive, Edit2, Lock, Video } from 'lucide-react'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
+import { API_TO_TIER, TIER_CONFIGS, planAtLeast } from '@/lib/tierConfig'
 
 type Tab = 'brand' | 'integrations' | 'billing' | 'account'
 
@@ -71,13 +72,23 @@ interface SocialAccount {
 const GOOGLE_CLIENT_ID = '602381566088-s7dcq0m47u4dr623bvefvakn98c14dqr.apps.googleusercontent.com'
 
 const GOOGLE_SCOPES: Record<string, string[]> = {
-  gbp: ['https://www.googleapis.com/auth/business.manage'],
   gmail: [
     'https://www.googleapis.com/auth/gmail.modify',
     'https://www.googleapis.com/auth/gmail.send',
   ],
   calendar: ['https://www.googleapis.com/auth/calendar'],
-  drive: ['https://www.googleapis.com/auth/drive.readonly'],
+  tasks: ['https://www.googleapis.com/auth/tasks'],
+  drive: ['https://www.googleapis.com/auth/drive'],
+  docs: ['https://www.googleapis.com/auth/documents'],
+  sheets: ['https://www.googleapis.com/auth/spreadsheets'],
+  slides: ['https://www.googleapis.com/auth/presentations'],
+  forms: ['https://www.googleapis.com/auth/forms'],
+  keep: ['https://www.googleapis.com/auth/keep'],
+  places: ['https://www.googleapis.com/auth/cloud-platform'],
+  meet: ['https://www.googleapis.com/auth/calendar'],
+  contacts: ['https://www.googleapis.com/auth/contacts'],
+  photos: ['https://www.googleapis.com/auth/photoslibrary'],
+  gbp: ['https://www.googleapis.com/auth/business.manage'],
 }
 
 function startGoogleOAuth(platform: string) {
@@ -310,10 +321,13 @@ export function IntegrationsPage() {
           <IntegrationCard
             icon={<Globe size={18} style={{ color: '#00d4ff' }} />}
             title="Google Business Profile"
-            subtitle="Review monitoring & AI-drafted responses · Pro+"
+            subtitle="Review monitoring, AI-drafted responses, and business insights"
             loading={acctLoading}
             connected={gbpConnected}
             warning={gbpTokensOnly}
+            tier="tier4"
+            tierName={TIER_CONFIGS.tier4.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier4')}
           >
             {gbpConnected && !acctLoading && (
               <>
@@ -487,9 +501,12 @@ export function IntegrationsPage() {
           <IntegrationCard
             icon={<Mail size={18} style={{ color: '#00d4ff' }} />}
             title="Gmail"
-            subtitle="Read inbox, compose & send emails via AI · Starter+"
+            subtitle="Read inbox, compose & send emails, organize with labels & filters"
             loading={acctLoading}
             connected={connectedPlatforms.has('gmail')}
+            tier="tier1"
+            tierName={TIER_CONFIGS.tier1.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier1')}
           >
             {!acctLoading && !connectedPlatforms.has('gmail') && (
               <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -537,9 +554,12 @@ export function IntegrationsPage() {
           <IntegrationCard
             icon={<Calendar size={18} style={{ color: '#00d4ff' }} />}
             title="Google Calendar"
-            subtitle="View schedule, check availability & create events · Starter+"
+            subtitle="View schedule, check availability, create & manage events"
             loading={acctLoading}
             connected={connectedPlatforms.has('calendar')}
+            tier="tier2"
+            tierName={TIER_CONFIGS.tier2.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier2')}
           >
             {!acctLoading && !connectedPlatforms.has('calendar') && (
               <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -587,9 +607,12 @@ export function IntegrationsPage() {
           <IntegrationCard
             icon={<HardDrive size={18} style={{ color: '#00d4ff' }} />}
             title="Google Drive"
-            subtitle="Read & search documents, reports & files · Starter+"
+            subtitle="Read, search, and manage files and folders"
             loading={acctLoading}
             connected={connectedPlatforms.has('drive')}
+            tier="tier3"
+            tierName={TIER_CONFIGS.tier3.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
           >
             {!acctLoading && !connectedPlatforms.has('drive') && (
               <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -626,6 +649,466 @@ export function IntegrationsPage() {
                     style={{color: 'rgba(0,212,255,0.7)', border: '1px solid rgba(0,212,255,0.2)'}}
                   >
                     Reconnect
+                  </button>
+                </div>
+                {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
+              </div>
+            )}
+          </IntegrationCard>
+
+          {/* ── Google Tasks ── */}
+          <IntegrationCard
+            icon={<Zap size={18} style={{ color: '#00d4ff' }} />}
+            title="Google Tasks"
+            subtitle="Create, update, and manage task lists"
+            loading={acctLoading}
+            connected={connectedPlatforms.has('tasks')}
+            tier="tier2"
+            tierName={TIER_CONFIGS.tier2.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier2')}
+          >
+            {!acctLoading && !connectedPlatforms.has('tasks') && (
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <button
+                  onClick={() => startGoogleOAuth('tasks')}
+                  disabled={!planAtLeast(client?.plan ?? 'free', 'tier2')}
+                  className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+                    border: '1px solid rgba(0,212,255,0.35)',
+                    color: '#00d4ff',
+                  }}
+                >
+                  CONNECT TASKS
+                </button>
+              </div>
+            )}
+            {!acctLoading && connectedPlatforms.has('tasks') && (
+              <div className="mt-4 pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle size={13} style={{ color: '#00d4ff' }} />
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Tasks authorized — agents can manage your task lists</span>
+                  <button
+                    onClick={() => handleDisconnect('tasks')}
+                    disabled={disconnecting === 'tasks'}
+                    className="text-xs px-2 py-0.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}
+                  >
+                    {disconnecting === 'tasks' ? 'DISCONNECTING…' : 'Disconnect'}
+                  </button>
+                </div>
+                {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
+              </div>
+            )}
+          </IntegrationCard>
+
+          {/* ── Google Docs ── */}
+          <IntegrationCard
+            icon={<Mail size={18} style={{ color: '#00d4ff' }} />}
+            title="Google Docs"
+            subtitle="Create, edit, and collaborate on documents"
+            loading={acctLoading}
+            connected={connectedPlatforms.has('docs')}
+            tier="tier3"
+            tierName={TIER_CONFIGS.tier3.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+          >
+            {!acctLoading && !connectedPlatforms.has('docs') && (
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <button
+                  onClick={() => startGoogleOAuth('docs')}
+                  disabled={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+                  className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+                    border: '1px solid rgba(0,212,255,0.35)',
+                    color: '#00d4ff',
+                  }}
+                >
+                  CONNECT DOCS
+                </button>
+              </div>
+            )}
+            {!acctLoading && connectedPlatforms.has('docs') && (
+              <div className="mt-4 pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle size={13} style={{ color: '#00d4ff' }} />
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Docs authorized — agents can create and edit documents</span>
+                  <button
+                    onClick={() => handleDisconnect('docs')}
+                    disabled={disconnecting === 'docs'}
+                    className="text-xs px-2 py-0.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}
+                  >
+                    {disconnecting === 'docs' ? 'DISCONNECTING…' : 'Disconnect'}
+                  </button>
+                </div>
+                {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
+              </div>
+            )}
+          </IntegrationCard>
+
+          {/* ── Google Sheets ── */}
+          <IntegrationCard
+            icon={<HardDrive size={18} style={{ color: '#00d4ff' }} />}
+            title="Google Sheets"
+            subtitle="Create, edit, and analyze spreadsheets"
+            loading={acctLoading}
+            connected={connectedPlatforms.has('sheets')}
+            tier="tier3"
+            tierName={TIER_CONFIGS.tier3.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+          >
+            {!acctLoading && !connectedPlatforms.has('sheets') && (
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <button
+                  onClick={() => startGoogleOAuth('sheets')}
+                  disabled={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+                  className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+                    border: '1px solid rgba(0,212,255,0.35)',
+                    color: '#00d4ff',
+                  }}
+                >
+                  CONNECT SHEETS
+                </button>
+              </div>
+            )}
+            {!acctLoading && connectedPlatforms.has('sheets') && (
+              <div className="mt-4 pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle size={13} style={{ color: '#00d4ff' }} />
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Sheets authorized — agents can manage your spreadsheets</span>
+                  <button
+                    onClick={() => handleDisconnect('sheets')}
+                    disabled={disconnecting === 'sheets'}
+                    className="text-xs px-2 py-0.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}
+                  >
+                    {disconnecting === 'sheets' ? 'DISCONNECTING…' : 'Disconnect'}
+                  </button>
+                </div>
+                {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
+              </div>
+            )}
+          </IntegrationCard>
+
+          {/* ── Google Slides ── */}
+          <IntegrationCard
+            icon={<Zap size={18} style={{ color: '#00d4ff' }} />}
+            title="Google Slides"
+            subtitle="Create and edit presentations"
+            loading={acctLoading}
+            connected={connectedPlatforms.has('slides')}
+            tier="tier3"
+            tierName={TIER_CONFIGS.tier3.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+          >
+            {!acctLoading && !connectedPlatforms.has('slides') && (
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <button
+                  onClick={() => startGoogleOAuth('slides')}
+                  disabled={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+                  className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+                    border: '1px solid rgba(0,212,255,0.35)',
+                    color: '#00d4ff',
+                  }}
+                >
+                  CONNECT SLIDES
+                </button>
+              </div>
+            )}
+            {!acctLoading && connectedPlatforms.has('slides') && (
+              <div className="mt-4 pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle size={13} style={{ color: '#00d4ff' }} />
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Slides authorized — agents can create presentations</span>
+                  <button
+                    onClick={() => handleDisconnect('slides')}
+                    disabled={disconnecting === 'slides'}
+                    className="text-xs px-2 py-0.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}
+                  >
+                    {disconnecting === 'slides' ? 'DISCONNECTING…' : 'Disconnect'}
+                  </button>
+                </div>
+                {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
+              </div>
+            )}
+          </IntegrationCard>
+
+          {/* ── Google Forms ── */}
+          <IntegrationCard
+            icon={<Mail size={18} style={{ color: '#00d4ff' }} />}
+            title="Google Forms"
+            subtitle="Create surveys and collect responses"
+            loading={acctLoading}
+            connected={connectedPlatforms.has('forms')}
+            tier="tier3"
+            tierName={TIER_CONFIGS.tier3.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+          >
+            {!acctLoading && !connectedPlatforms.has('forms') && (
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <button
+                  onClick={() => startGoogleOAuth('forms')}
+                  disabled={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+                  className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+                    border: '1px solid rgba(0,212,255,0.35)',
+                    color: '#00d4ff',
+                  }}
+                >
+                  CONNECT FORMS
+                </button>
+              </div>
+            )}
+            {!acctLoading && connectedPlatforms.has('forms') && (
+              <div className="mt-4 pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle size={13} style={{ color: '#00d4ff' }} />
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Forms authorized — agents can create forms</span>
+                  <button
+                    onClick={() => handleDisconnect('forms')}
+                    disabled={disconnecting === 'forms'}
+                    className="text-xs px-2 py-0.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}
+                  >
+                    {disconnecting === 'forms' ? 'DISCONNECTING…' : 'Disconnect'}
+                  </button>
+                </div>
+                {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
+              </div>
+            )}
+          </IntegrationCard>
+
+          {/* ── Google Keep ── */}
+          <IntegrationCard
+            icon={<Mail size={18} style={{ color: '#00d4ff' }} />}
+            title="Google Keep"
+            subtitle="Create and organize notes"
+            loading={acctLoading}
+            connected={connectedPlatforms.has('keep')}
+            tier="tier3"
+            tierName={TIER_CONFIGS.tier3.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+          >
+            {!acctLoading && !connectedPlatforms.has('keep') && (
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <button
+                  onClick={() => startGoogleOAuth('keep')}
+                  disabled={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+                  className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+                    border: '1px solid rgba(0,212,255,0.35)',
+                    color: '#00d4ff',
+                  }}
+                >
+                  CONNECT KEEP
+                </button>
+              </div>
+            )}
+            {!acctLoading && connectedPlatforms.has('keep') && (
+              <div className="mt-4 pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle size={13} style={{ color: '#00d4ff' }} />
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Keep authorized — agents can manage your notes</span>
+                  <button
+                    onClick={() => handleDisconnect('keep')}
+                    disabled={disconnecting === 'keep'}
+                    className="text-xs px-2 py-0.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}
+                  >
+                    {disconnecting === 'keep' ? 'DISCONNECTING…' : 'Disconnect'}
+                  </button>
+                </div>
+                {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
+              </div>
+            )}
+          </IntegrationCard>
+
+          {/* ── Google Meet ── */}
+          <IntegrationCard
+            icon={<Video size={18} style={{ color: '#00d4ff' }} />}
+            title="Google Meet"
+            subtitle="Schedule and host video meetings"
+            loading={acctLoading}
+            connected={connectedPlatforms.has('meet')}
+            tier="tier4"
+            tierName={TIER_CONFIGS.tier4.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier4')}
+          >
+            {!acctLoading && !connectedPlatforms.has('meet') && (
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <button
+                  onClick={() => startGoogleOAuth('meet')}
+                  disabled={!planAtLeast(client?.plan ?? 'free', 'tier4')}
+                  className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+                    border: '1px solid rgba(0,212,255,0.35)',
+                    color: '#00d4ff',
+                  }}
+                >
+                  CONNECT MEET
+                </button>
+              </div>
+            )}
+            {!acctLoading && connectedPlatforms.has('meet') && (
+              <div className="mt-4 pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle size={13} style={{ color: '#00d4ff' }} />
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Meet authorized — agents can schedule meetings</span>
+                  <button
+                    onClick={() => handleDisconnect('meet')}
+                    disabled={disconnecting === 'meet'}
+                    className="text-xs px-2 py-0.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}
+                  >
+                    {disconnecting === 'meet' ? 'DISCONNECTING…' : 'Disconnect'}
+                  </button>
+                </div>
+                {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
+              </div>
+            )}
+          </IntegrationCard>
+
+          {/* ── Google Contacts ── */}
+          <IntegrationCard
+            icon={<Zap size={18} style={{ color: '#00d4ff' }} />}
+            title="Google Contacts"
+            subtitle="Create and manage contact information"
+            loading={acctLoading}
+            connected={connectedPlatforms.has('contacts')}
+            tier="tier4"
+            tierName={TIER_CONFIGS.tier4.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier4')}
+          >
+            {!acctLoading && !connectedPlatforms.has('contacts') && (
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <button
+                  onClick={() => startGoogleOAuth('contacts')}
+                  disabled={!planAtLeast(client?.plan ?? 'free', 'tier4')}
+                  className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+                    border: '1px solid rgba(0,212,255,0.35)',
+                    color: '#00d4ff',
+                  }}
+                >
+                  CONNECT CONTACTS
+                </button>
+              </div>
+            )}
+            {!acctLoading && connectedPlatforms.has('contacts') && (
+              <div className="mt-4 pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle size={13} style={{ color: '#00d4ff' }} />
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Contacts authorized — agents can manage your contacts</span>
+                  <button
+                    onClick={() => handleDisconnect('contacts')}
+                    disabled={disconnecting === 'contacts'}
+                    className="text-xs px-2 py-0.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}
+                  >
+                    {disconnecting === 'contacts' ? 'DISCONNECTING…' : 'Disconnect'}
+                  </button>
+                </div>
+                {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
+              </div>
+            )}
+          </IntegrationCard>
+
+          {/* ── Google Photos ── */}
+          <IntegrationCard
+            icon={<Zap size={18} style={{ color: '#00d4ff' }} />}
+            title="Google Photos"
+            subtitle="Organize photos, detect duplicates, and manage collections"
+            loading={acctLoading}
+            connected={connectedPlatforms.has('photos')}
+            tier="tier4"
+            tierName={TIER_CONFIGS.tier4.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier4')}
+          >
+            {!acctLoading && !connectedPlatforms.has('photos') && (
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <button
+                  onClick={() => startGoogleOAuth('photos')}
+                  disabled={!planAtLeast(client?.plan ?? 'free', 'tier4')}
+                  className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+                    border: '1px solid rgba(0,212,255,0.35)',
+                    color: '#00d4ff',
+                  }}
+                >
+                  CONNECT PHOTOS
+                </button>
+              </div>
+            )}
+            {!acctLoading && connectedPlatforms.has('photos') && (
+              <div className="mt-4 pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle size={13} style={{ color: '#00d4ff' }} />
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Photos authorized — agents can organize your photos</span>
+                  <button
+                    onClick={() => handleDisconnect('photos')}
+                    disabled={disconnecting === 'photos'}
+                    className="text-xs px-2 py-0.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}
+                  >
+                    {disconnecting === 'photos' ? 'DISCONNECTING…' : 'Disconnect'}
+                  </button>
+                </div>
+                {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
+              </div>
+            )}
+          </IntegrationCard>
+
+          {/* ── Google Places ── */}
+          <IntegrationCard
+            icon={<Globe size={18} style={{ color: '#00d4ff' }} />}
+            title="Google Places"
+            subtitle="Location intelligence and place data"
+            loading={acctLoading}
+            connected={connectedPlatforms.has('places')}
+            tier="tier3"
+            tierName={TIER_CONFIGS.tier3.displayName}
+            locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+          >
+            {!acctLoading && !connectedPlatforms.has('places') && (
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <button
+                  onClick={() => startGoogleOAuth('places')}
+                  disabled={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+                  className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
+                    border: '1px solid rgba(0,212,255,0.35)',
+                    color: '#00d4ff',
+                  }}
+                >
+                  CONNECT PLACES
+                </button>
+              </div>
+            )}
+            {!acctLoading && connectedPlatforms.has('places') && (
+              <div className="mt-4 pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle size={13} style={{ color: '#00d4ff' }} />
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Places authorized — agents can access location data</span>
+                  <button
+                    onClick={() => handleDisconnect('places')}
+                    disabled={disconnecting === 'places'}
+                    className="text-xs px-2 py-0.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.2)'}}
+                  >
+                    {disconnecting === 'places' ? 'DISCONNECTING…' : 'Disconnect'}
                   </button>
                 </div>
                 {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
@@ -834,6 +1317,9 @@ function IntegrationCard({
   loading,
   connected,
   warning,
+  tier,
+  tierName,
+  locked,
   children,
 }: {
   icon: ReactNode
@@ -842,25 +1328,40 @@ function IntegrationCard({
   loading: boolean
   connected: boolean
   warning?: boolean
+  tier?: string
+  tierName?: string
+  locked?: boolean
   children?: ReactNode
 }) {
   return (
     <div
       className="rounded-xl p-5"
-      style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.1)' }}
+      style={{ background: 'rgba(8,13,22,0.8)', border: locked ? '1px solid rgba(255,80,80,0.2)' : '1px solid rgba(0,212,255,0.1)' }}
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-1">
           <div className="p-2.5 rounded-xl" style={{ background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.15)' }}>
-            {icon}
+            {locked ? <Lock size={18} style={{ color: 'rgba(255,80,80,0.6)' }} /> : icon}
           </div>
-          <div>
-            <p className="text-white font-semibold text-sm tracking-wide">{title}</p>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-white font-semibold text-sm tracking-wide">{title}</p>
+              {tier && tierName && (
+                <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(0,212,255,0.1)', color: '#00d4ff', border: '1px solid rgba(0,212,255,0.2)' }}>
+                  {tierName}
+                </span>
+              )}
+            </div>
             <p className="text-xs mt-0.5" style={{ color: 'rgba(0,212,255,0.45)' }}>{subtitle}</p>
           </div>
         </div>
         {loading ? (
           <div className="w-24 h-8 rounded-lg animate-pulse" style={{ background: 'rgba(0,212,255,0.05)' }} />
+        ) : locked ? (
+          <div className="flex items-center gap-1.5">
+            <Lock size={14} style={{ color: 'rgba(255,80,80,0.6)' }} />
+            <span className="text-xs font-semibold tracking-widest" style={{ color: 'rgba(255,80,80,0.6)' }}>LOCKED</span>
+          </div>
         ) : warning ? (
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#fbbf24' }} />
@@ -878,7 +1379,12 @@ function IntegrationCard({
           </div>
         )}
       </div>
-      {children}
+      {locked && (
+        <div className="mt-4 pt-4 px-3 py-3 rounded text-xs" style={{ borderTop: '1px solid rgba(255,80,80,0.15)', background: 'rgba(255,80,80,0.05)' }}>
+          <p style={{ color: 'rgba(255,80,80,0.7)' }}>Upgrade to <strong>{tierName}</strong> to use this API</p>
+        </div>
+      )}
+      {!locked && children}
     </div>
   )
 }
