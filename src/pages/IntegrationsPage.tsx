@@ -1,9 +1,10 @@
 import { useState, useEffect, type ReactNode, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useClient } from '@/hooks/useClient'
 import { CheckCircle, Globe, ChevronDown, CreditCard, Zap, Mail, Calendar, HardDrive, Edit2 } from 'lucide-react'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
 
-type Tab = 'brand' | 'integrations' | 'billing'
+type Tab = 'brand' | 'integrations' | 'billing' | 'account'
 
 function useAnthropicKey() {
   const [key, setKey] = useState('')
@@ -243,7 +244,7 @@ export function IntegrationsPage() {
         className="flex gap-0 mb-6 rounded-lg overflow-hidden w-fit"
         style={{ border: '1px solid rgba(0,212,255,0.12)' }}
       >
-        {(['integrations', 'brand', 'billing'] as Tab[]).map((t) => (
+        {(['integrations', 'brand', 'billing', 'account'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -254,7 +255,7 @@ export function IntegrationsPage() {
                 : { background: 'transparent', color: 'rgba(255,255,255,0.35)' }
             }
           >
-            {t === 'brand' ? 'BRAND SETTINGS' : t === 'billing' ? 'BILLING' : 'INTEGRATIONS'}
+            {t === 'brand' ? 'BRAND SETTINGS' : t === 'billing' ? 'BILLING' : t === 'account' ? 'ACCOUNT' : 'INTEGRATIONS'}
           </button>
         ))}
       </div>
@@ -642,6 +643,8 @@ export function IntegrationsPage() {
       {tab === 'brand' && <PasswordChangeSection />}
 
       {tab === 'billing' && <BillingTab client={client} />}
+
+      {tab === 'account' && <AccountTab />}
     </div>
   )
 }
@@ -763,6 +766,96 @@ function IntegrationCard({
         )}
       </div>
       {children}
+    </div>
+  )
+}
+
+function AccountTab() {
+  const navigate = useNavigate()
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  async function handleDeleteAccount() {
+    if (!confirmDelete) {
+      setConfirmDelete(true)
+      return
+    }
+
+    setDeleting(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('Error: Not logged in')
+        setDeleting(false)
+        return
+      }
+
+      // Get client ID for deletion
+      const { data: client } = await supabase.from('prymal_clients').select('id').eq('user_id', user.id).single()
+
+      if (client) {
+        // Delete user's approval queue items
+        await supabase.from('prymal_approval_queue').delete().eq('client_id', client.id)
+
+        // Delete user's OAuth tokens
+        await supabase.from('prymal_oauth_tokens').delete().eq('client_id', client.id)
+
+        // Delete user's client record
+        await supabase.from('prymal_clients').delete().eq('id', client.id)
+      }
+
+      // Sign out
+      await supabase.auth.signOut()
+
+      // Redirect to login
+      navigate('/login')
+    } catch (err) {
+      alert(`Error deleting account: ${(err as Error).message}`)
+      setDeleting(false)
+      setConfirmDelete(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="rounded-xl p-5 mb-6" style={{ background: 'rgba(8,13,22,0.8)', border: '1px solid rgba(0,212,255,0.1)' }}>
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-xs font-bold tracking-widest" style={{ color: 'rgba(0,212,255,0.6)' }}>ACCOUNT</p>
+        </div>
+        <p className="text-sm text-white">Manage your Prymal AI account</p>
+      </div>
+
+      <div className="rounded-xl p-5 border border-red-900/30" style={{ background: 'rgba(127,29,29,0.1)' }}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-bold text-red-400 mb-1">Delete Account</h3>
+            <p className="text-xs text-slate-400">
+              Permanently delete your account and all associated data. This action cannot be undone.
+            </p>
+            <p className="text-xs text-slate-500 mt-2">
+              When you delete your account:
+            </p>
+            <ul className="text-xs text-slate-500 mt-1 ml-4 space-y-0.5">
+              <li>• All personal data is permanently deleted</li>
+              <li>• Chat history and logs are purged</li>
+              <li>• OAuth tokens are revoked</li>
+              <li>• Backups are deleted after 7 days</li>
+            </ul>
+          </div>
+          <button
+            onClick={handleDeleteAccount}
+            disabled={deleting}
+            className="py-2 px-4 text-xs font-bold tracking-widest rounded-lg transition-all whitespace-nowrap flex-shrink-0"
+            style={{
+              background: confirmDelete ? 'rgba(220,38,38,0.3)' : 'rgba(127,29,29,0.3)',
+              border: confirmDelete ? '1px solid rgb(220,38,38)' : '1px solid rgba(127,29,29,0.5)',
+              color: '#f87171',
+            }}
+          >
+            {deleting ? 'DELETING…' : confirmDelete ? 'CONFIRM DELETE' : 'DELETE ACCOUNT'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
