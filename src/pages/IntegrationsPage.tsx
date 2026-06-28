@@ -23,13 +23,24 @@ function useAnthropicKey() {
 
   async function save() {
     setSaving(true)
-    const { data: clientRow } = await supabase.from('prymal_clients').select('id').single()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setSaving(false); return }
+    const { data: clientRow } = await supabase
+      .from('prymal_clients')
+      .select('id')
+      .eq('user_id', user.id)
+      .single()
     if (clientRow) {
-      await supabase.from('prymal_clients').update({ anthropic_api_key: key.trim() }).eq('id', clientRow.id)
+      const { error: updateError } = await supabase
+        .from('prymal_clients')
+        .update({ anthropic_api_key: key.trim() })
+        .eq('id', clientRow.id)
+      if (!updateError) {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      }
     }
     setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
   }
 
   return { key, setKey, save, saving, saved, loaded }
@@ -50,13 +61,24 @@ function useGeminiKey() {
 
   async function save() {
     setSaving(true)
-    const { data: clientRow } = await supabase.from('prymal_clients').select('id').single()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setSaving(false); return }
+    const { data: clientRow } = await supabase
+      .from('prymal_clients')
+      .select('id')
+      .eq('user_id', user.id)
+      .single()
     if (clientRow) {
-      await supabase.from('prymal_clients').update({ gemini_api_key: key.trim() }).eq('id', clientRow.id)
+      const { error: updateError } = await supabase
+        .from('prymal_clients')
+        .update({ gemini_api_key: key.trim() })
+        .eq('id', clientRow.id)
+      if (!updateError) {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      }
     }
     setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
   }
 
   return { key, setKey, save, saving, saved, loaded }
@@ -79,16 +101,14 @@ const GOOGLE_SCOPES: Record<string, string[]> = {
   ],
   calendar: ['https://www.googleapis.com/auth/calendar'],
   tasks: ['https://www.googleapis.com/auth/tasks'],
-  drive: ['https://www.googleapis.com/auth/drive'],
+  drive: ['https://www.googleapis.com/auth/drive.file'],
   docs: ['https://www.googleapis.com/auth/documents'],
   sheets: ['https://www.googleapis.com/auth/spreadsheets'],
   slides: ['https://www.googleapis.com/auth/presentations'],
   forms: ['https://www.googleapis.com/auth/forms'],
   keep: ['https://www.googleapis.com/auth/keep'],
-  places: ['https://www.googleapis.com/auth/cloud-platform'],
   meet: ['https://www.googleapis.com/auth/calendar'],
   contacts: ['https://www.googleapis.com/auth/contacts'],
-  photos: ['https://www.googleapis.com/auth/photoslibrary'],
   gbp: ['https://www.googleapis.com/auth/business.manage'],
 }
 
