@@ -155,15 +155,19 @@ export function IntegrationsPage() {
 
   useEffect(() => {
     if (!client) return
+    const clientId = client.id
+    const gbpAccountId = client.gbp_account_id
+    const gbpLocationId = client.gbp_location_id
+
     async function load() {
       const [accountsRes, tokensRes] = await Promise.all([
-        supabase.from('prymal_social_accounts').select('*').eq('client_id', client.id).order('platform'),
-        supabase.from('prymal_oauth_tokens').select('platform').eq('client_id', client.id),
+        supabase.from('prymal_social_accounts').select('*').eq('client_id', clientId).order('platform'),
+        supabase.from('prymal_oauth_tokens').select('platform').eq('client_id', clientId),
       ])
       setAccounts(accountsRes.data ?? [])
       setGbpIds({
-        account: client.gbp_account_id ?? null,
-        location: client.gbp_location_id ?? null,
+        account: gbpAccountId ?? null,
+        location: gbpLocationId ?? null,
       })
       const platforms = new Set((tokensRes.data ?? []).map((r: { platform: string }) => r.platform))
       setConnectedPlatforms(platforms)
