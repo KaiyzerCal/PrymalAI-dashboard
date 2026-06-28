@@ -19,6 +19,22 @@ function planAtLeast(clientPlan: string, required: string) {
   return (PLAN_RANK[clientPlan] ?? 0) >= (PLAN_RANK[required] ?? 99)
 }
 
+function getTierFromDescription(description: string): string | null {
+  const match = description.match(/\[([^\]]+)\]/)
+  if (!match) return null
+  const tierTag = match[1].toLowerCase().replace('+', '')
+  return tierTag
+}
+
+function filterToolsByPlan(tools: Anthropic.Tool[], clientPlan: string): Anthropic.Tool[] {
+  return tools.filter(tool => {
+    const tierTag = getTierFromDescription(tool.description)
+    if (!tierTag) return true
+    if (tierTag === 'all plans') return true
+    return planAtLeast(clientPlan, tierTag)
+  })
+}
+
 const SYSTEM_PROMPT = `You are Prymal — an autonomous AI Google Agent managing a client's full Google workspace and online presence.
 
 CAPABILITIES BY TIER:
@@ -2558,10 +2574,14 @@ async function runHaikuLoop(
     { role: 'user', content: message },
   ]
 
+  const availableTools = filterToolsByPlan(TOOLS, clientPlan)
+
   console.log('[DEBUG] Haiku request:', {
     messageCount: messages.length,
     lastUserMessage: message.slice(0, 100),
-    historyCount: history.length
+    historyCount: history.length,
+    clientPlan,
+    availableToolsCount: availableTools.length
   })
 
   while (true) {
@@ -2569,7 +2589,7 @@ async function runHaikuLoop(
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
-      tools: TOOLS,
+      tools: availableTools,
       messages,
     })
 
