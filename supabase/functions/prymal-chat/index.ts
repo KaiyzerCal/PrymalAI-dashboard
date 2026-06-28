@@ -2558,6 +2558,12 @@ async function runHaikuLoop(
     { role: 'user', content: message },
   ]
 
+  console.log('[DEBUG] Haiku request:', {
+    messageCount: messages.length,
+    lastUserMessage: message.slice(0, 100),
+    historyCount: history.length
+  })
+
   while (true) {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -2567,11 +2573,19 @@ async function runHaikuLoop(
       messages,
     })
 
+    console.log('[DEBUG] Haiku response:', {
+      stop_reason: response.stop_reason,
+      content_blocks: response.content.length,
+      content_types: response.content.map(c => c.type)
+    })
+
     if (response.stop_reason === 'end_turn') {
-      return response.content
+      const text = response.content
         .filter(b => b.type === 'text')
         .map(b => (b as Anthropic.TextBlock).text)
         .join('')
+      console.log('[DEBUG] Haiku end_turn response text:', text)
+      return text
     }
 
     if (response.stop_reason === 'tool_use') {
