@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { MessageSquare, Mic, MicOff, Volume2, VolumeX, Send, ChevronDown, Trash2 } from 'lucide-react'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
 
@@ -29,6 +29,98 @@ declare global {
     SpeechRecognition: new () => ISpeechRecognition
     webkitSpeechRecognition: new () => ISpeechRecognition
   }
+}
+
+// Render markdown to React elements — supports images, bold, links, lists, code
+function renderMarkdown(text: string): React.ReactNode {
+  const lines = text.split('\n')
+  const elements: React.ReactNode[] = []
+  let i = 0
+
+  function parseInline(s: string): React.ReactNode[] {
+    const parts: React.ReactNode[] = []
+    // Pattern: images ![alt](url), links [text](url), bold **text**, code `text`
+    const re = /!\[([^\]]*)\]\(([^)]+)\)|\[([^\]]+)\]\(([^)]+)\)|(\*\*[^*]+\*\*)|(```[\s\S]*?```|`[^`]+`)/g
+    let last = 0
+    let m: RegExpExecArray | null
+    while ((m = re.exec(s)) !== null) {
+      if (m.index > last) parts.push(s.slice(last, m.index))
+      if (m[1] !== undefined) {
+        // Image
+        parts.push(
+          <img
+            key={m.index}
+            src={m[2]}
+            alt={m[1]}
+            style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '6px', display: 'block' }}
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        )
+      } else if (m[3] !== undefined) {
+        // Link
+        parts.push(
+          <a key={m.index} href={m[4]} target="_blank" rel="noopener noreferrer"
+            style={{ color: '#00d4ff', textDecoration: 'underline' }}>
+            {m[3]}
+          </a>
+        )
+      } else if (m[5] !== undefined) {
+        // Bold
+        parts.push(<strong key={m.index}>{m[5].replace(/\*\*/g, '')}</strong>)
+      } else if (m[6] !== undefined) {
+        // Code
+        parts.push(
+          <code key={m.index}
+            style={{ background: 'rgba(0,212,255,0.1)', padding: '1px 4px', borderRadius: '3px', fontSize: '0.85em' }}>
+            {m[6].replace(/^```[\w]*\n?|```$|^`|`$/g, '')}
+          </code>
+        )
+      }
+      last = m.index + m[0].length
+    }
+    if (last < s.length) parts.push(s.slice(last))
+    return parts
+  }
+
+  while (i < lines.length) {
+    const line = lines[i]
+    // Heading
+    if (line.startsWith('### ')) {
+      elements.push(<p key={i} style={{ fontWeight: 700, fontSize: '0.9em', marginTop: '8px', color: '#00d4ff' }}>{parseInline(line.slice(4))}</p>)
+    } else if (line.startsWith('## ')) {
+      elements.push(<p key={i} style={{ fontWeight: 700, fontSize: '0.95em', marginTop: '8px', color: '#00d4ff' }}>{parseInline(line.slice(3))}</p>)
+    } else if (line.startsWith('# ')) {
+      elements.push(<p key={i} style={{ fontWeight: 700, marginTop: '8px', color: '#00d4ff' }}>{parseInline(line.slice(2))}</p>)
+    // List item
+    } else if (/^[-*] /.test(line)) {
+      elements.push(
+        <div key={i} style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+          <span style={{ color: '#00d4ff', flexShrink: 0 }}>•</span>
+          <span>{parseInline(line.slice(2))}</span>
+        </div>
+      )
+    } else if (/^\d+\. /.test(line)) {
+      const num = line.match(/^(\d+)\. /)![1]
+      elements.push(
+        <div key={i} style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+          <span style={{ color: '#00d4ff', flexShrink: 0 }}>{num}.</span>
+          <span>{parseInline(line.replace(/^\d+\. /, ''))}</span>
+        </div>
+      )
+    // Horizontal rule
+    } else if (/^---+$/.test(line.trim())) {
+      elements.push(<hr key={i} style={{ border: 'none', borderTop: '1px solid rgba(0,212,255,0.15)', margin: '6px 0' }} />)
+    // Empty line
+    } else if (line.trim() === '') {
+      if (elements.length > 0) elements.push(<div key={i} style={{ height: '4px' }} />)
+    // Normal text
+    } else {
+      elements.push(<p key={i} style={{ margin: 0 }}>{parseInline(line)}</p>)
+    }
+    i++
+  }
+
+  return <>{elements}</>
 }
 
 const INITIAL_MESSAGE: DisplayMessage = {
@@ -346,8 +438,9 @@ export function ChatWidget() {
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className="max-w-xs rounded-lg px-3 py-2 text-sm"
+                  className="rounded-lg px-3 py-2 text-sm"
                   style={{
+                    maxWidth: msg.role === 'user' ? '75%' : '88%',
                     background: msg.role === 'user'
                       ? 'rgba(0,212,255,0.2)'
                       : msg.isError
@@ -355,9 +448,12 @@ export function ChatWidget() {
                       : 'rgba(0,212,255,0.1)',
                     color: msg.isError ? '#ff6464' : msg.role === 'user' ? '#00d4ff' : '#fff',
                     borderLeft: msg.isError ? '2px solid #ff6464' : 'none',
+                    lineHeight: '1.5',
                   }}
                 >
-                  {msg.content}
+                  {msg.role === 'assistant' && !msg.isError
+                    ? renderMarkdown(msg.content)
+                    : msg.content}
                 </div>
               </div>
             ))}

@@ -86,7 +86,15 @@ RULES — never break these:
 3. If a client asks for a feature their plan doesn't include, tell them clearly which plan unlocks it and what it does.
 4. If a Google service isn't connected yet, tell the client to go to Settings → Integrations to connect it.
 5. Match the client's brand tone when drafting any content. If brand tone isn't set, ask first.
-6. Be specific — tell the client exactly what you found, what you drafted, and why.`
+6. Be specific — tell the client exactly what you found, what you drafted, and why.
+
+FORMATTING — always follow these:
+- Use **bold** for file names, labels, and key terms.
+- Use bullet lists for listing files, emails, or events.
+- When analyze_file returns content that already contains ![name](url) markdown for an image, pass it through exactly as-is — do not remove or rewrite it.
+- When get_file_info returns a thumbnailUrl for an image, display it with: ![filename](thumbnailUrl)
+- For videos, provide the webViewLink as a clickable markdown link: [Watch video](url)
+- For documents with content, show a clean summary followed by the key content.`
 
 // ── Token management ──────────────────────────────────────────────────────────
 
@@ -2844,11 +2852,15 @@ ${method === 'smart' ? '- AI-powered intelligent grouping based on content, time
       if (!token) return { error: 'Google Drive not connected. Go to Settings → Integrations → Google Drive to connect.' }
 
       const res = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${input.fileId}?fields=id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,owners,sharingUser,shared,permissions,parents,description`,
+        `https://www.googleapis.com/drive/v3/files/${input.fileId}?fields=id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,thumbnailLink,hasThumbnail,owners,sharingUser,shared,permissions,parents,description`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       const data = await res.json()
       if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+
+      const thumbUrl = data.thumbnailLink
+        ? data.thumbnailLink.replace(/=s\d+$/, '=s1600')
+        : null
 
       return {
         id: data.id,
@@ -2859,6 +2871,7 @@ ${method === 'smart' ? '- AI-powered intelligent grouping based on content, time
         modified: data.modifiedTime,
         link: data.webViewLink,
         downloadLink: data.webContentLink,
+        thumbnailUrl: thumbUrl,
         shared: data.shared,
         owners: (data.owners ?? []).map((o: Record<string, string>) => o.emailAddress),
         description: data.description ?? null,
@@ -2872,9 +2885,9 @@ ${method === 'smart' ? '- AI-powered intelligent grouping based on content, time
 
       const maxChars = (input.maxChars as number) ?? 5000
 
-      // Get file metadata first
+      // Get file metadata first (include thumbnailLink for images)
       const metaRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${input.fileId}?fields=id,name,mimeType,size,webViewLink`,
+        `https://www.googleapis.com/drive/v3/files/${input.fileId}?fields=id,name,mimeType,size,webViewLink,thumbnailLink,hasThumbnail`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       const meta = await metaRes.json()
@@ -2914,7 +2927,13 @@ ${method === 'smart' ? '- AI-powered intelligent grouping based on content, time
         content = (await dlRes.text()).slice(0, maxChars)
       } else if (mime.startsWith('image/')) {
         contentType = 'image'
-        content = `Image file: ${meta.name}\nType: ${mime}\nSize: ${meta.size ? Math.round(Number(meta.size) / 1024) + ' KB' : 'unknown'}\nView: ${meta.webViewLink}\n\nNote: Image content analysis requires viewing the image directly at the link above.`
+        // Use a larger thumbnail size for display (sz=w1600 gives up to 1600px wide)
+        const thumbUrl = meta.thumbnailLink
+          ? meta.thumbnailLink.replace(/=s\d+$/, '=s1600')
+          : null
+        content = thumbUrl
+          ? `![${meta.name}](${thumbUrl})\n\n**${meta.name}**\nSize: ${meta.size ? Math.round(Number(meta.size) / 1024) + ' KB' : 'unknown'} · [Open in Drive](${meta.webViewLink})`
+          : `**${meta.name}**\nSize: ${meta.size ? Math.round(Number(meta.size) / 1024) + ' KB' : 'unknown'}\n[Open in Drive](${meta.webViewLink})\n\n_No preview available — open the link to view this image._`
       } else if (mime.startsWith('video/')) {
         contentType = 'video'
         content = `Video file: ${meta.name}\nType: ${mime}\nSize: ${meta.size ? Math.round(Number(meta.size) / 1024 / 1024) + ' MB' : 'unknown'}\nView: ${meta.webViewLink}`
