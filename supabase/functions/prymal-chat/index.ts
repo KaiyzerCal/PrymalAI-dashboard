@@ -192,7 +192,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Pro+ : GBP ──
   {
     name: 'get_reviews',
-    description: '[Pro+] Fetch reviews from Google Business Profile. Returns reviewer, rating, comment, and whether a reply exists.',
+    description: '[Tier 4+] Fetch reviews from Google Business Profile. Returns reviewer, rating, comment, and whether a reply exists.',
     input_schema: {
       type: 'object',
       properties: {
@@ -205,7 +205,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Starter+ : Gmail ──
   {
     name: 'get_emails',
-    description: '[Starter+] Search and list Gmail messages. Use to find unanswered inquiries, leads, or any email thread.',
+    description: '[Tier 1+] Search and list Gmail messages. Use to find unanswered inquiries, leads, or any email thread.',
     input_schema: {
       type: 'object',
       properties: {
@@ -216,7 +216,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_email_thread',
-    description: '[Starter+] Get the full content of an email thread by thread ID.',
+    description: '[Tier 1+] Get the full content of an email thread by thread ID.',
     input_schema: {
       type: 'object',
       properties: {
@@ -226,10 +226,10 @@ const TOOLS: Anthropic.Tool[] = [
     }
   },
 
-  // ── Starter+ : Calendar ──
+  // ── Tier 2+ : Calendar ──
   {
     name: 'get_calendar_events',
-    description: '[Starter+] List upcoming Google Calendar events.',
+    description: '[Tier 2+] List upcoming Google Calendar events.',
     input_schema: {
       type: 'object',
       properties: {
@@ -241,7 +241,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_availability',
-    description: '[Starter+] Check free/busy slots on Google Calendar for a given time range.',
+    description: '[Tier 2+] Check free/busy slots on Google Calendar for a given time range.',
     input_schema: {
       type: 'object',
       properties: {
@@ -255,7 +255,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Starter+ : Drive ──
   {
     name: 'search_drive_files',
-    description: '[Starter+] Search Google Drive for files by name or content.',
+    description: '[Tier 3+] Search Google Drive for files by name or content.',
     input_schema: {
       type: 'object',
       properties: {
@@ -266,7 +266,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'read_drive_file',
-    description: '[Starter+] Read the text content of a Google Drive document.',
+    description: '[Tier 3+] Read the text content of a Google Drive document.',
     input_schema: {
       type: 'object',
       properties: {
