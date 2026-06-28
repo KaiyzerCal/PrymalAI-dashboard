@@ -154,23 +154,23 @@ export function IntegrationsPage() {
   const [gbpIds, setGbpIds] = useState<{ account: string | null; location: string | null }>({ account: null, location: null })
 
   useEffect(() => {
+    if (!client?.id) return
     async function load() {
-      const [accountsRes, clientRes, tokensRes] = await Promise.all([
-        supabase.from('prymal_social_accounts').select('*').order('platform'),
-        supabase.from('prymal_clients').select('gbp_account_id, gbp_location_id').single(),
-        supabase.from('prymal_oauth_tokens').select('platform'),
+      const [accountsRes, tokensRes] = await Promise.all([
+        supabase.from('prymal_social_accounts').select('*').eq('client_id', client.id).order('platform'),
+        supabase.from('prymal_oauth_tokens').select('platform').eq('client_id', client.id),
       ])
       setAccounts(accountsRes.data ?? [])
       setGbpIds({
-        account: clientRes.data?.gbp_account_id ?? null,
-        location: clientRes.data?.gbp_location_id ?? null,
+        account: client.gbp_account_id ?? null,
+        location: client.gbp_location_id ?? null,
       })
       const platforms = new Set((tokensRes.data ?? []).map((r: { platform: string }) => r.platform))
       setConnectedPlatforms(platforms)
       setAcctLoading(false)
     }
     load()
-  }, [])
+  }, [client?.id])
 
   async function handleDisconnect(platform: string) {
     setDisconnecting(platform)

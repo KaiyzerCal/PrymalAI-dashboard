@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 
@@ -13,6 +13,15 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null)
   const [showReset, setShowReset] = useState(false)
+
+  // Clear form on mount to prevent browser auto-fill or cached state
+  useEffect(() => {
+    setEmail('')
+    setPassword('')
+    setName('')
+    setMessage(null)
+    setShowReset(false)
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -168,7 +177,7 @@ export function LoginPage() {
             {(['password', 'magic', 'signup'] as Mode[]).map((m) => (
               <button
                 key={m}
-                onClick={() => { setMode(m); setMessage(null); setShowReset(false) }}
+                onClick={() => { setMode(m); setMessage(null); setShowReset(false); setPassword(''); setEmail(''); setName('') }}
                 className="flex-1 py-2 text-xs font-medium tracking-widest transition-all"
                 style={
                   mode === m

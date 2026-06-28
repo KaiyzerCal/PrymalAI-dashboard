@@ -322,14 +322,6 @@ export function ChatWidget() {
                 {ttsEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
               </button>
               <button
-                onClick={toggleMic}
-                className="p-1.5 rounded-lg transition-all"
-                style={{ color: listening ? '#00d4ff' : 'rgba(0,212,255,0.5)' }}
-                title={listening ? 'Stop listening' : 'Start listening'}
-              >
-                {listening ? <Mic size={16} /> : <MicOff size={16} />}
-              </button>
-              <button
                 onClick={() => setOpen(false)}
                 className="p-1.5 rounded-lg transition-all"
                 style={{ color: '#00d4ff' }}
@@ -378,7 +370,7 @@ export function ChatWidget() {
           </div>
 
           <div
-            className="px-4 py-3 flex gap-2 flex-shrink-0"
+            className="px-4 py-3 flex gap-2 flex-shrink-0 items-end"
             style={{ borderTop: '1px solid rgba(0,212,255,0.08)' }}
           >
             <textarea
@@ -393,9 +385,21 @@ export function ChatWidget() {
               rows={1}
             />
             <button
+              onClick={toggleMic}
+              disabled={loading}
+              className="p-2 rounded-lg transition-all flex-shrink-0"
+              style={{
+                color: listening ? '#00d4ff' : 'rgba(0,212,255,0.5)',
+                cursor: !loading ? 'pointer' : 'not-allowed',
+              }}
+              title={listening ? 'Stop listening' : 'Start listening'}
+            >
+              {listening ? <Mic size={18} /> : <MicOff size={18} />}
+            </button>
+            <button
               onClick={send}
               disabled={!input.trim() || loading}
-              className="p-2 rounded-lg transition-all"
+              className="p-2 rounded-lg transition-all flex-shrink-0"
               style={{
                 color: input.trim() && !loading ? '#00d4ff' : 'rgba(0,212,255,0.3)',
                 cursor: input.trim() && !loading ? 'pointer' : 'not-allowed',
