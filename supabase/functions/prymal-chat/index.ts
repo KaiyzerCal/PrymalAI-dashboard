@@ -27,12 +27,18 @@ function getTierFromDescription(description: string): string | null {
 }
 
 function filterToolsByPlan(tools: Anthropic.Tool[], clientPlan: string): Anthropic.Tool[] {
-  return tools.filter(tool => {
+  const filtered = tools.filter(tool => {
     const tierTag = getTierFromDescription(tool.description)
-    if (!tierTag) return true
-    if (tierTag === 'all plans') return true
-    return planAtLeast(clientPlan, tierTag)
+    const keep = !tierTag || tierTag === 'all plans' || planAtLeast(clientPlan, tierTag)
+    return keep
   })
+  console.log('[DEBUG] Tool filtering:', {
+    clientPlan,
+    totalTools: tools.length,
+    filteredTools: filtered.length,
+    planRank: PLAN_RANK[clientPlan] ?? 'unknown'
+  })
+  return filtered
 }
 
 const SYSTEM_PROMPT = `You are Prymal — an autonomous AI Google Agent managing a client's full Google workspace and online presence.
