@@ -21,12 +21,13 @@ export function DashboardPage() {
   const { client } = useClient()
   const { isAdmin } = useAdmin()
 
-  // Filter agents based on tier
-  const visibleAgents = AGENTS.filter(agent => {
-    if (isAdmin) return true
-    const requiredTier = AGENT_TO_TIER[agent.id]
-    return requiredTier && planAtLeast(client?.plan ?? 'free', requiredTier)
-  })
+  // Filter agents based on tier - admins see all agents
+  const visibleAgents = isAdmin
+    ? AGENTS
+    : AGENTS.filter(agent => {
+        const requiredTier = AGENT_TO_TIER[agent.id]
+        return requiredTier && planAtLeast(client?.plan ?? 'free', requiredTier)
+      })
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({})
   const [stats, setStats] = useState<Partial<AgentStats>>({})
   const [countsLoading, setCountsLoading] = useState(true)
