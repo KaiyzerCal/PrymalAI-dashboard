@@ -1,11 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { MessageSquare, Mic, MicOff, Volume2, VolumeX, Send, ChevronDown, Trash2, Settings } from 'lucide-react'
+import { MessageSquare, Mic, MicOff, Volume2, VolumeX, Send, ChevronDown, Trash2 } from 'lucide-react'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
-
-function needsReconnect(text: string): boolean {
-  return /settings.*integrations|go to settings|not connected|reconnect/i.test(text)
-}
 
 type MessageRole = 'user' | 'assistant'
 
@@ -80,7 +75,6 @@ function loadSavedHistory(): ChatMessage[] {
 }
 
 export function ChatWidget() {
-  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [displayMessages, setDisplayMessages] = useState<DisplayMessage[]>([INITIAL_MESSAGE])
   const [history, setHistory] = useState<ChatMessage[]>(loadSavedHistory())
