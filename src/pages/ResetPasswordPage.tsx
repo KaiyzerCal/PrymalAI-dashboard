@@ -36,7 +36,7 @@ export function ResetPasswordPage() {
       setMessage({ text: error.message, ok: false })
     } else {
       setMessage({ text: 'Password set! Redirecting…', ok: true })
-      setTimeout(() => navigate('/'), 1500)
+      setTimeout(() => navigate('/dashboard'), 1500)
     }
     setLoading(false)
   }

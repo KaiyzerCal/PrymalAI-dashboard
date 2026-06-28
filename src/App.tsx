@@ -70,10 +70,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (session === undefined || needsOnboarding === undefined || trialExpired === undefined) return null
   if (!session) return <Navigate to="/login" replace />
-  if (needsOnboarding && window.location.pathname !== '/onboarding') {
+  if (needsOnboarding && !window.location.pathname.startsWith('/onboarding')) {
     return <Navigate to="/onboarding" replace />
   }
-  if (trialExpired && window.location.pathname !== '/upgrade') {
+  if (trialExpired && !window.location.pathname.startsWith('/upgrade')) {
     return <Navigate to="/upgrade" replace />
   }
   return <>{children}</>
@@ -83,7 +83,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/landing" element={<LandingPage />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
@@ -101,7 +101,7 @@ export default function App() {
             <UpgradePage />
           </AuthGuardSession>
         } />
-        <Route
+        <Route path="/dashboard"
           element={
             <AuthGuard>
               <Layout />
@@ -114,10 +114,13 @@ export default function App() {
           <Route path="settings" element={<IntegrationsPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="admin/clients/:id" element={<AdminClientPage />} />
-          {/* Legacy redirects */}
-          <Route path="briefings" element={<Navigate to="/agents/intel" replace />} />
-          <Route path="social" element={<Navigate to="/agents/brand" replace />} />
         </Route>
+        {/* Legacy redirects */}
+        <Route path="/agents/:id" element={<Navigate to="/dashboard/agents/:id" replace />} />
+        <Route path="/approvals" element={<Navigate to="/dashboard/approvals" replace />} />
+        <Route path="/settings" element={<Navigate to="/dashboard/settings" replace />} />
+        <Route path="/briefings" element={<Navigate to="/dashboard/agents/intel" replace />} />
+        <Route path="/social" element={<Navigate to="/dashboard/agents/brand" replace />} />
       </Routes>
     </BrowserRouter>
   )

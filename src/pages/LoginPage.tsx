@@ -73,7 +73,7 @@ export function LoginPage() {
         setMessage({ text: error.message, ok: false })
         if (error.message.toLowerCase().includes('invalid')) setShowReset(true)
       } else {
-        navigate('/')
+        navigate('/dashboard')
       }
     }
     setLoading(false)

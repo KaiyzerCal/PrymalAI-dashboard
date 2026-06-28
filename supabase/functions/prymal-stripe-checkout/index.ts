@@ -72,8 +72,8 @@ Deno.serve(async (req) => {
         },
       ],
       mode: 'subscription',
-      success_url: `${new URL(req.url).origin}/?payment=success&plan=${plan}`,
-      cancel_url: `${new URL(req.url).origin}/settings?tab=billing`,
+      success_url: `${new URL(req.url).origin}/dashboard?payment=success&plan=${plan}`,
+      cancel_url: `${new URL(req.url).origin}/dashboard/settings?tab=billing`,
       metadata: {
         user_id: user.id,
         plan,

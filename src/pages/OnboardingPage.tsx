@@ -192,11 +192,11 @@ export function OnboardingPage() {
         window.location.href = data.url
       } else {
         // Fallback: just go to dashboard if checkout fails
-        navigate('/')
+        navigate('/dashboard')
       }
     } catch (err) {
       console.error('Error starting checkout:', err)
-      navigate('/')
+      navigate('/dashboard')
     } finally {
       setSaving(false)
     }
@@ -216,9 +216,9 @@ export function OnboardingPage() {
           onboarding_complete: true,
         }).eq('user_id', user.id)
       }
-      navigate('/')
+      navigate('/dashboard')
     } catch {
-      navigate('/')
+      navigate('/dashboard')
     } finally {
       setSaving(false)
     }
