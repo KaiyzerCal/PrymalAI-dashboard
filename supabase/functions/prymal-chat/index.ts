@@ -2492,7 +2492,8 @@ async function runGeminiLoop(
   clientId: string,
   clientPlan: string
 ): Promise<string> {
-  const functionDeclarations = TOOLS.map(t => ({
+  const availableTools = filterToolsByPlan(TOOLS, clientPlan)
+  const functionDeclarations = availableTools.map(t => ({
     name: t.name,
     description: t.description,
     parameters: t.input_schema,
