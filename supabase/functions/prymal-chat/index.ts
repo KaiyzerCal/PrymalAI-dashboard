@@ -1125,7 +1125,7 @@ async function handleTool(
         console.error(`🔴 CALENDAR: No token found, returning error`)
         return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
       }
-      console.error(`🔴 CALENDAR: Proceeding with token lookup`)
+      console.error(`🔴 CALENDAR: Proceeding with API call`)
 
       const timeMin = (input.timeMin as string) ?? new Date().toISOString()
       const timeMax = (input.timeMax as string) ?? new Date(Date.now() + 7 * 86400000).toISOString()
@@ -1136,12 +1136,18 @@ async function handleTool(
         singleEvents: 'true',
         orderBy: 'startTime',
       })
+      console.error(`🔴 CALENDAR: Calling Google API with timeMin=${timeMin.slice(0, 10)}, timeMax=${timeMax.slice(0, 10)}`)
       const res = await fetch(
         `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
+      console.error(`🔴 CALENDAR: API response status=${res.status}`)
       const data = await res.json()
-      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+      console.error(`🔴 CALENDAR: API response body=${JSON.stringify(data).slice(0, 200)}`)
+      if (data.error) {
+        console.error(`🔴 CALENDAR: API Error - ${JSON.stringify(data.error)}`)
+        return { error: `Calendar API Error: ${data.error.message ?? JSON.stringify(data.error)}` }
+      }
 
       const events = (data.items ?? []).map((e: Record<string, unknown>) => ({
         id: e.id,
