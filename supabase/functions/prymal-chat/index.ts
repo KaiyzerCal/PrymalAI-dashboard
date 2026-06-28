@@ -95,14 +95,21 @@ async function getFreshToken(
   clientId: string,
   platform: string
 ): Promise<string | null> {
-  const { data } = await supabase
+  console.log(`[DEBUG] getFreshToken: Looking for token - clientId=${clientId}, platform=${platform}`)
+
+  const { data, error } = await supabase
     .from('prymal_oauth_tokens')
     .select('access_token, refresh_token, expires_at')
     .eq('client_id', clientId)
     .eq('platform', platform)
     .single()
 
-  if (!data) return null
+  console.log(`[DEBUG] getFreshToken query result:`, { data, error })
+
+  if (!data) {
+    console.warn(`[WARN] No token found for clientId=${clientId}, platform=${platform}`)
+    return null
+  }
 
   const expiresAt = data.expires_at ? new Date(data.expires_at).getTime() : 0
   if (Date.now() < expiresAt - 60000) return data.access_token
@@ -1008,7 +1015,9 @@ async function handleTool(
 
     case 'get_emails': {
       requirePlan('tier1', 'Gmail')
+      console.log(`[DEBUG] get_emails: Attempting to fetch Gmail token for clientId=${clientId}`)
       const token = await getFreshToken(supabase, clientId, 'gmail')
+      console.log(`[DEBUG] get_emails: Token fetch result - token=${token ? 'present' : 'null'}`)
       if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
 
       const params = new URLSearchParams({
