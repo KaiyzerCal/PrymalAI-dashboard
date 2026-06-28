@@ -7,9 +7,33 @@ function needsReconnect(text: string): boolean {
   return /settings.*integrations|go to settings|not connected|reconnect/i.test(text)
 }
 
+function isCorruptedMessage(content: unknown): boolean {
+  if (typeof content !== 'string') return false
+  const corruptionPatterns = [
+    /agent\s+capabilities\s+updated/i,
+    /complete\s+working\s+implementations/i,
+    /all\s+tiers\s+now\s+have/i,
+  ]
+  return corruptionPatterns.some(pattern => pattern.test(content))
+}
+
+function isValidMessage(msg: unknown): msg is Message {
+  if (!msg || typeof msg !== 'object') return false
+  if (!('role' in msg) || !('content' in msg)) return false
+  if (typeof msg.content !== 'string' || typeof msg.role !== 'string') return false
+  if (msg.role !== 'user' && msg.role !== 'assistant') return false
+  if (isCorruptedMessage(msg.content)) return false
+  return true
+}
+
+function isValidHistory(history: unknown): history is Message[] {
+  return Array.isArray(history) && history.every(isValidMessage)
+}
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  _isError?: boolean
 }
 
 interface ISpeechRecognition extends EventTarget {
@@ -50,24 +74,35 @@ export function ChatWidget() {
     const saved = sessionStorage.getItem('prymal_chat_messages')
     const savedHistory = sessionStorage.getItem('prymal_chat_history')
 
-    // Clear corrupted history containing the problematic message
     if (saved) {
       try {
         const msgs = JSON.parse(saved)
-        const hasCorruptedMessage = msgs.some((m: Message) =>
-          m.content?.includes('Agent capabilities updated') ||
-          m.content?.includes('complete working implementations')
-        )
-        if (hasCorruptedMessage) {
+
+        // Validate messages: all messages must be valid, including no corruption
+        if (isValidHistory(msgs)) {
+          // All messages valid, safe to load
+          setMessages(msgs)
+          if (savedHistory) {
+            try {
+              const hist = JSON.parse(savedHistory)
+              if (isValidHistory(hist)) {
+                setHistory(hist)
+              }
+            } catch {
+              // History parsing failed, ignore it
+            }
+          }
+        } else {
+          // Any message invalid → clear everything
           sessionStorage.removeItem('prymal_chat_messages')
           sessionStorage.removeItem('prymal_chat_history')
           setMessages([INITIAL_MESSAGE])
           setHistory([])
-        } else {
-          setMessages(msgs)
-          if (savedHistory) setHistory(JSON.parse(savedHistory))
         }
       } catch {
+        // JSON parse failed, clear storage
+        sessionStorage.removeItem('prymal_chat_messages')
+        sessionStorage.removeItem('prymal_chat_history')
         setMessages([INITIAL_MESSAGE])
       }
     }
@@ -77,12 +112,17 @@ export function ChatWidget() {
 
   useEffect(() => {
     if (!initialized) return
-    sessionStorage.setItem('prymal_chat_messages', JSON.stringify(messages))
+    // Only save messages that don't have the error flag to sessionStorage
+    const displayMessages = messages.filter(m => !m._isError)
+    sessionStorage.setItem('prymal_chat_messages', JSON.stringify(displayMessages))
   }, [messages, initialized])
 
   useEffect(() => {
     if (!initialized) return
-    sessionStorage.setItem('prymal_chat_history', JSON.stringify(history))
+    // Validate history before saving
+    if (isValidHistory(history)) {
+      sessionStorage.setItem('prymal_chat_history', JSON.stringify(history))
+    }
   }, [history, initialized])
 
   useEffect(() => {
@@ -164,10 +204,41 @@ export function ChatWidget() {
         },
         body: JSON.stringify({ message: msg, history }),
       })
+
+      // Check HTTP status first
+      if (!res.ok) {
+        const errMsg = `Server error (HTTP ${res.status})`
+        setMessages(prev => [...prev, { role: 'assistant', content: errMsg, _isError: true }])
+        setLoading(false)
+        return
+      }
+
       const text = await res.text()
       let data: Record<string, unknown> = {}
-      try { data = JSON.parse(text) } catch { data = { error: `Server error (HTTP ${res.status})` } }
-      const reply = (data.reply ?? data.error ?? 'Something went wrong.') as string
+      try {
+        data = JSON.parse(text)
+      } catch {
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Invalid response from server', _isError: true }])
+        setLoading(false)
+        return
+      }
+
+      // Must have 'reply' field for successful response
+      if (!('reply' in data)) {
+        const error = (data.error as string) ?? 'Unknown error'
+        setMessages(prev => [...prev, { role: 'assistant', content: error, _isError: true }])
+        setLoading(false)
+        return
+      }
+
+      const reply = data.reply as string
+      if (typeof reply !== 'string') {
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Invalid response format', _isError: true }])
+        setLoading(false)
+        return
+      }
+
+      // Only successful AI responses go into history
       const assistantMsg: Message = { role: 'assistant', content: reply }
       setMessages(prev => [...prev, assistantMsg])
       setHistory(prev => {
@@ -178,7 +249,7 @@ export function ChatWidget() {
       if (!open) setUnread(prev => prev + 1)
     } catch (err) {
       const errMsg = `Connection error: ${(err as Error).message}`
-      setMessages(prev => [...prev, { role: 'assistant', content: errMsg }])
+      setMessages(prev => [...prev, { role: 'assistant', content: errMsg, _isError: true }])
     }
 
     setLoading(false)

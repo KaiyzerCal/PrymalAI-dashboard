@@ -2506,8 +2506,9 @@ async function runGeminiLoop(
   }))
 
   // Build initial contents from plain-text history + new message
+  const validHistory = validateHistory(history)
   const contents: { role: string; parts: GeminiPart[] }[] = [
-    ...history.map(m => ({
+    ...validHistory.map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }] as GeminiPart[],
     })),
@@ -2565,6 +2566,45 @@ async function runGeminiLoop(
   throw new Error('Gemini loop exceeded max iterations')
 }
 
+// ── Input validation helpers ──────────────────────────────────────────────────
+
+function validateHistory(history: unknown): { role: 'user' | 'assistant'; content: string }[] {
+  if (!Array.isArray(history)) {
+    console.warn('[WARN] Invalid history: not an array, returning empty')
+    return []
+  }
+
+  return history
+    .filter((msg): msg is { role: 'user' | 'assistant'; content: string } => {
+      if (!msg || typeof msg !== 'object') return false
+      if (!('role' in msg) || !('content' in msg)) return false
+      if (typeof msg.role !== 'string' || typeof msg.content !== 'string') return false
+      if (msg.role !== 'user' && msg.role !== 'assistant') return false
+      return true
+    })
+    .slice(0, 20) // Enforce max history length at backend
+}
+
+function validateMessage(message: unknown): string {
+  if (typeof message !== 'string' || !message.trim()) {
+    throw new Error('Message must be a non-empty string')
+  }
+  return message.trim()
+}
+
+function validatePlan(plan: unknown): string {
+  const validPlans = ['free', 'trial', 'tier1', 'starter', 'tier2', 'pro', 'tier3', 'tier4', 'agency']
+
+  if (!validPlans.includes(plan as string)) {
+    if (plan !== null && plan !== undefined) {
+      console.warn(`[WARN] Invalid plan: "${plan}", defaulting to free`)
+    }
+    return 'free'
+  }
+
+  return plan as string
+}
+
 // ── Claude Haiku fallback loop ────────────────────────────────────────────────
 
 async function runHaikuLoop(
@@ -2576,8 +2616,9 @@ async function runHaikuLoop(
   clientPlan: string
 ): Promise<string> {
   const anthropic = new Anthropic({ apiKey })
+  const validHistory = validateHistory(history)
   const messages: Anthropic.MessageParam[] = [
-    ...history.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    ...validHistory.map(m => ({ role: m.role, content: m.content })),
     { role: 'user', content: message },
   ]
 
@@ -2663,6 +2704,18 @@ Deno.serve(async (req) => {
 
     const { message, history = [] } = await req.json()
 
+    // Validate inputs
+    let validatedMessage: string
+    try {
+      validatedMessage = validateMessage(message)
+    } catch (err) {
+      return new Response(
+        JSON.stringify({ error: (err as Error).message }),
+        { status: 400, headers: { 'Content-Type': 'application/json', ...CORS } }
+      )
+    }
+
+    const clientPlan = validatePlan(clientRow.plan)
     const geminiKey = (clientRow.gemini_api_key as string | null) ?? ''
     const anthropicKey = (clientRow.anthropic_api_key as string | null) ?? ''
 
@@ -2672,7 +2725,7 @@ Deno.serve(async (req) => {
     if (anthropicKey) {
       try {
         finalText = await runHaikuLoop(
-          anthropicKey, history, message, supabase, clientRow.id, clientRow.plan
+          anthropicKey, history, validatedMessage, supabase, clientRow.id, clientPlan
         )
       } catch (haikuErr) {
         // Anthropic unavailable or quota exceeded — fall back to Gemini
@@ -2684,13 +2737,13 @@ Deno.serve(async (req) => {
           )
         }
         finalText = await runGeminiLoop(
-          geminiKey, history, message, supabase, clientRow.id, clientRow.plan
+          geminiKey, history, validatedMessage, supabase, clientRow.id, clientPlan
         )
       }
     } else if (geminiKey) {
       // No Anthropic key — use Gemini directly
       finalText = await runGeminiLoop(
-        geminiKey, history, message, supabase, clientRow.id, clientRow.plan
+        geminiKey, history, validatedMessage, supabase, clientRow.id, clientPlan
       )
     } else {
       return new Response(
