@@ -90,3 +90,12 @@ export const AGENTS: AgentDef[] = [
 export function getAgent(id: string): AgentDef | undefined {
   return AGENTS.find(a => a.id === id)
 }
+
+export const AGENT_TO_TIER: Record<string, 'tier1' | 'tier2' | 'tier3' | 'tier4'> = {
+  google: 'tier1',
+  booking: 'tier2',
+  brand: 'tier3',
+  outreach: 'tier3',
+  service: 'tier3',
+  intel: 'tier4',
+}

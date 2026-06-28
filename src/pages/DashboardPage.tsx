@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useClient } from '@/hooks/useClient'
-import { AGENTS } from '@/lib/agents'
+import { useAdmin } from '@/hooks/useAdmin'
+import { AGENTS, AGENT_TO_TIER } from '@/lib/agents'
+import { planAtLeast } from '@/lib/tierConfig'
 import { ChevronRight, Clock, Activity } from 'lucide-react'
 import { SetupChecklist } from '@/components/SetupChecklist'
 
@@ -17,10 +19,14 @@ interface AgentStats {
 
 export function DashboardPage() {
   const { client } = useClient()
-  const adminEmails = ['caljohnathon@gmail.com', 'skyforgeai.studio@gmail.com']
-  const isAdmin = client?.owner_email && adminEmails.includes(client.owner_email)
-  // Non-admin users only see Google agent
-  const visibleAgents = isAdmin ? AGENTS : [AGENTS.find(a => a.id === 'google')!]
+  const { isAdmin } = useAdmin()
+
+  // Filter agents based on tier
+  const visibleAgents = AGENTS.filter(agent => {
+    if (isAdmin) return true
+    const requiredTier = AGENT_TO_TIER[agent.id]
+    return requiredTier && planAtLeast(client?.plan ?? 'free', requiredTier)
+  })
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({})
   const [stats, setStats] = useState<Partial<AgentStats>>({})
   const [countsLoading, setCountsLoading] = useState(true)
