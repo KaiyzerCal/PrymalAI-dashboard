@@ -22,7 +22,7 @@ function planAtLeast(clientPlan: string, required: string) {
 function getTierFromDescription(description: string): string | null {
   const match = description.match(/\[([^\]]+)\]/)
   if (!match) return null
-  const tierTag = match[1].toLowerCase().replace('+', '')
+  const tierTag = match[1].toLowerCase().replace('+', '').replace(/\s+/g, '')
   return tierTag
 }
 
