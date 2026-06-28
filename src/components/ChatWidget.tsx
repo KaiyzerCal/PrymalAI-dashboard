@@ -373,17 +373,6 @@ export function ChatWidget() {
             className="px-4 py-3 flex gap-2 flex-shrink-0 items-end"
             style={{ borderTop: '1px solid rgba(0,212,255,0.08)' }}
           >
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder="Ask me anything..."
-              className="flex-1 bg-transparent text-sm text-white resize-none focus:outline-none"
-              style={{ color: '#fff', maxHeight: '100px' }}
-              disabled={loading}
-              rows={1}
-            />
             <button
               onClick={toggleMic}
               disabled={loading}
@@ -396,6 +385,17 @@ export function ChatWidget() {
             >
               {listening ? <Mic size={18} /> : <MicOff size={18} />}
             </button>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKey}
+              placeholder="Ask me anything..."
+              className="flex-1 bg-transparent text-sm text-white resize-none focus:outline-none"
+              style={{ color: '#fff', maxHeight: '100px' }}
+              disabled={loading}
+              rows={1}
+            />
             <button
               onClick={send}
               disabled={!input.trim() || loading}

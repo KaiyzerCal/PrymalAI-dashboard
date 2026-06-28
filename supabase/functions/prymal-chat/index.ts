@@ -95,38 +95,66 @@ async function getFreshToken(
   clientId: string,
   platform: string
 ): Promise<string | null> {
-  const { data } = await supabase
-    .from('prymal_oauth_tokens')
-    .select('access_token, refresh_token, expires_at')
-    .eq('client_id', clientId)
-    .eq('platform', platform)
-    .single()
+  try {
+    console.log(`[DEBUG] getFreshToken START: clientId=${clientId}, platform=${platform}`)
 
-  if (!data) return null
+    const { data, error } = await supabase
+      .from('prymal_oauth_tokens')
+      .select('access_token, refresh_token, expires_at')
+      .eq('client_id', clientId)
+      .eq('platform', platform)
+      .single()
 
-  const expiresAt = data.expires_at ? new Date(data.expires_at).getTime() : 0
-  if (Date.now() < expiresAt - 60000) return data.access_token
-  if (!data.refresh_token) return null
+    console.log(`[DEBUG] getFreshToken QUERY: data exists=${!!data}, error=${error ? error.message : 'none'}`)
 
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: data.refresh_token,
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-    }),
-  })
-  const tokens = await res.json()
-  if (!tokens.access_token) return null
+    if (error) {
+      console.warn(`[WARN] getFreshToken query error: ${error.message}`)
+      return null
+    }
 
-  await supabase.from('prymal_oauth_tokens').update({
-    access_token: tokens.access_token,
-    expires_at: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString(),
-  }).eq('client_id', clientId).eq('platform', platform)
+    if (!data) {
+      console.warn(`[WARN] No token found for clientId=${clientId}, platform=${platform}`)
+      return null
+    }
 
-  return tokens.access_token
+    console.log(`[DEBUG] getFreshToken found token, expires_at=${data.expires_at}`)
+
+    const expiresAt = data.expires_at ? new Date(data.expires_at).getTime() : 0
+    if (Date.now() < expiresAt - 60000) {
+      console.log(`[DEBUG] getFreshToken: Token still valid`)
+      return data.access_token
+    }
+
+    if (!data.refresh_token) {
+      console.warn(`[WARN] getFreshToken: No refresh token, cannot refresh`)
+      return null
+    }
+
+    console.log(`[DEBUG] getFreshToken: Token expired, refreshing...`)
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: data.refresh_token,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+      }),
+    })
+    const tokens = await res.json()
+    console.log(`[DEBUG] getFreshToken: Refresh response - ${tokens.access_token ? 'SUCCESS' : 'FAILED'}`)
+    if (!tokens.access_token) return null
+
+    await supabase.from('prymal_oauth_tokens').update({
+      access_token: tokens.access_token,
+      expires_at: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString(),
+    }).eq('client_id', clientId).eq('platform', platform)
+
+    return tokens.access_token
+  } catch (err) {
+    console.error(`[ERROR] getFreshToken exception: ${(err as Error).message}`)
+    return null
+  }
 }
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
@@ -185,7 +213,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Pro+ : GBP ──
   {
     name: 'get_reviews',
-    description: '[Pro+] Fetch reviews from Google Business Profile. Returns reviewer, rating, comment, and whether a reply exists.',
+    description: '[Tier 4+] Fetch reviews from Google Business Profile. Returns reviewer, rating, comment, and whether a reply exists.',
     input_schema: {
       type: 'object',
       properties: {
@@ -198,7 +226,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Starter+ : Gmail ──
   {
     name: 'get_emails',
-    description: '[Starter+] Search and list Gmail messages. Use to find unanswered inquiries, leads, or any email thread.',
+    description: '[Tier 1+] Search and list Gmail messages. Use to find unanswered inquiries, leads, or any email thread.',
     input_schema: {
       type: 'object',
       properties: {
@@ -209,7 +237,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_email_thread',
-    description: '[Starter+] Get the full content of an email thread by thread ID.',
+    description: '[Tier 1+] Get the full content of an email thread by thread ID.',
     input_schema: {
       type: 'object',
       properties: {
@@ -219,10 +247,10 @@ const TOOLS: Anthropic.Tool[] = [
     }
   },
 
-  // ── Starter+ : Calendar ──
+  // ── Tier 2+ : Calendar ──
   {
     name: 'get_calendar_events',
-    description: '[Starter+] List upcoming Google Calendar events.',
+    description: '[Tier 2+] List upcoming Google Calendar events.',
     input_schema: {
       type: 'object',
       properties: {
@@ -234,7 +262,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_availability',
-    description: '[Starter+] Check free/busy slots on Google Calendar for a given time range.',
+    description: '[Tier 2+] Check free/busy slots on Google Calendar for a given time range.',
     input_schema: {
       type: 'object',
       properties: {
@@ -248,7 +276,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Starter+ : Drive ──
   {
     name: 'search_drive_files',
-    description: '[Starter+] Search Google Drive for files by name or content.',
+    description: '[Tier 3+] Search Google Drive for files by name or content.',
     input_schema: {
       type: 'object',
       properties: {
@@ -259,7 +287,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'read_drive_file',
-    description: '[Starter+] Read the text content of a Google Drive document.',
+    description: '[Tier 3+] Read the text content of a Google Drive document.',
     input_schema: {
       type: 'object',
       properties: {
@@ -691,7 +719,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Tier 4: Google Meet ──
   {
     name: 'schedule_meet',
-    description: '[Tier 4] Schedule a Google Meet call and add to calendar.',
+    description: '[Tier 4+] Schedule a Google Meet call and add to calendar.',
     input_schema: {
       type: 'object',
       properties: {
@@ -708,7 +736,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Tier 4: Google Contacts ──
   {
     name: 'create_contact',
-    description: '[Tier 4] Create a new contact in Google Contacts.',
+    description: '[Tier 4+] Create a new contact in Google Contacts.',
     input_schema: {
       type: 'object',
       properties: {
@@ -725,7 +753,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'update_contact',
-    description: '[Tier 4] Update a contact in Google Contacts.',
+    description: '[Tier 4+] Update a contact in Google Contacts.',
     input_schema: {
       type: 'object',
       properties: {
@@ -743,7 +771,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'delete_contact',
-    description: '[Tier 4] Delete a contact from Google Contacts.',
+    description: '[Tier 4+] Delete a contact from Google Contacts.',
     input_schema: {
       type: 'object',
       properties: {
@@ -754,7 +782,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'list_contacts',
-    description: '[Tier 4] List contacts from Google Contacts.',
+    description: '[Tier 4+] List contacts from Google Contacts.',
     input_schema: {
       type: 'object',
       properties: {
@@ -767,7 +795,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Tier 4: Google Business Profile ──
   {
     name: 'respond_to_review',
-    description: '[Tier 4] Respond to a Google Business Profile review.',
+    description: '[Tier 4+] Respond to a Google Business Profile review.',
     input_schema: {
       type: 'object',
       properties: {
@@ -779,7 +807,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'create_post',
-    description: '[Tier 4] Create a post on Google Business Profile.',
+    description: '[Tier 4+] Create a post on Google Business Profile.',
     input_schema: {
       type: 'object',
       properties: {
@@ -795,7 +823,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Tier 4: Google Photos ──
   {
     name: 'upload_photo',
-    description: '[Tier 4] Upload a photo to Google Photos.',
+    description: '[Tier 4+] Upload a photo to Google Photos.',
     input_schema: {
       type: 'object',
       properties: {
@@ -807,7 +835,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'create_album',
-    description: '[Tier 4] Create an album in Google Photos.',
+    description: '[Tier 4+] Create an album in Google Photos.',
     input_schema: {
       type: 'object',
       properties: {
@@ -819,7 +847,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'organize_photos',
-    description: '[Tier 4] Add photos to an album in Google Photos.',
+    description: '[Tier 4+] Add photos to an album in Google Photos.',
     input_schema: {
       type: 'object',
       properties: {
@@ -831,7 +859,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'find_duplicate_photos',
-    description: '[Tier 4] Detect and identify duplicate or very similar photos in Google Photos (exact matches, near-duplicates, similar compositions).',
+    description: '[Tier 4+] Detect and identify duplicate or very similar photos in Google Photos (exact matches, near-duplicates, similar compositions).',
     input_schema: {
       type: 'object',
       properties: {
@@ -842,7 +870,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'delete_duplicate_photos',
-    description: '[Tier 4] Remove duplicate photos, intelligently keeping the best quality version from each group.',
+    description: '[Tier 4+] Remove duplicate photos, intelligently keeping the best quality version from each group.',
     input_schema: {
       type: 'object',
       properties: {
@@ -856,7 +884,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'auto_organize_photos',
-    description: '[Tier 4] Intelligently organize photos by date, location, or detected content (people, objects, scenes).',
+    description: '[Tier 4+] Intelligently organize photos by date, location, or detected content (people, objects, scenes).',
     input_schema: {
       type: 'object',
       properties: {
@@ -1008,7 +1036,9 @@ async function handleTool(
 
     case 'get_emails': {
       requirePlan('tier1', 'Gmail')
+      console.log(`[DEBUG] get_emails: Attempting to fetch Gmail token for clientId=${clientId}`)
       const token = await getFreshToken(supabase, clientId, 'gmail')
+      console.log(`[DEBUG] get_emails: Token fetch result - token=${token ? 'present' : 'null'}`)
       if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
 
       const params = new URLSearchParams({
@@ -1087,8 +1117,13 @@ async function handleTool(
 
     case 'get_calendar_events': {
       requirePlan('tier2', 'Google Calendar')
+      console.log(`[DEBUG] get_calendar_events: Attempting to fetch calendar token for clientId=${clientId}`)
       const token = await getFreshToken(supabase, clientId, 'calendar')
-      if (!token) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
+      console.log(`[DEBUG] get_calendar_events: Token result - ${token ? 'SUCCESS' : 'FAILED'}, token=${token ? token.slice(0, 20) : 'null'}`)
+      if (!token) {
+        console.log(`[DEBUG] get_calendar_events: Returning error - Calendar not connected`)
+        return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
+      }
 
       const timeMin = (input.timeMin as string) ?? new Date().toISOString()
       const timeMax = (input.timeMax as string) ?? new Date(Date.now() + 7 * 86400000).toISOString()
@@ -2686,6 +2721,7 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log('[VERSION] prymal-chat deployed 2026-06-28 v2.5 with detailed token logging')
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
 
