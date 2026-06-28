@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useClient } from '@/hooks/useClient'
 import { useAdmin } from '@/hooks/useAdmin'
@@ -20,6 +20,16 @@ interface AgentStats {
 export function DashboardPage() {
   const { client } = useClient()
   const { isAdmin } = useAdmin()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [paymentSuccess, setPaymentSuccess] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('payment') === 'success') {
+      setPaymentSuccess(true)
+      setSearchParams({}, { replace: true })
+      setTimeout(() => setPaymentSuccess(false), 6000)
+    }
+  }, [])
 
   // Filter agents based on tier - admins see all agents
   const visibleAgents = isAdmin
@@ -142,6 +152,20 @@ export function DashboardPage() {
       />
 
       <SetupChecklist />
+
+      {/* Payment success toast */}
+      {paymentSuccess && (
+        <div
+          className="fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl text-sm font-semibold shadow-2xl"
+          style={{ background: 'rgba(8,13,22,0.98)', border: '1px solid rgba(0,212,255,0.4)', color: '#00d4ff', boxShadow: '0 0 40px rgba(0,212,255,0.2)' }}
+        >
+          <span style={{ fontSize: '18px' }}>🎉</span>
+          <div>
+            <p className="font-bold">You're all set!</p>
+            <p className="text-xs font-normal" style={{ color: 'rgba(255,255,255,0.5)' }}>Your 7-day trial is active. Enjoy full access.</p>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="relative mb-10">

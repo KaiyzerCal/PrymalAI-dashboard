@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
-import { Check, ChevronDown } from 'lucide-react'
+import { supabase, FUNCTION_BASE } from '@/lib/supabase'
+import { Check, ChevronDown, Gift } from 'lucide-react'
 
 const PLANS = [
   {
@@ -170,17 +170,54 @@ export function OnboardingPage() {
     }
     setSaving(true)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { navigate('/login'); return }
+
+      // Mark onboarding complete so the return URL from Stripe lands on dashboard
+      await supabase.from('prymal_clients').update({
+        onboarding_complete: true,
+      }).eq('user_id', session.user.id)
+
+      // Call Stripe checkout Edge Function
+      const res = await fetch(`${FUNCTION_BASE}/prymal-stripe-checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ plan: planId }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        // Fallback: just go to dashboard if checkout fails
+        navigate('/')
+      }
+    } catch (err) {
+      console.error('Error starting checkout:', err)
+      navigate('/')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function startFreeTrial() {
+    if (!policiesAcknowledged) {
+      alert('Please acknowledge our policies before continuing')
+      return
+    }
+    setSaving(true)
+    try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        // Update plan and mark onboarding complete
         await supabase.from('prymal_clients').update({
-          plan: planId,
-          onboarding_complete: true
+          plan: 'trial',
+          onboarding_complete: true,
         }).eq('user_id', user.id)
       }
       navigate('/')
-    } catch (err) {
-      console.error('Error choosing plan:', err)
+    } catch {
       navigate('/')
     } finally {
       setSaving(false)
@@ -301,7 +338,16 @@ export function OnboardingPage() {
           <div>
             <div className="text-center mb-6">
               <h2 className="text-white font-bold tracking-wide">Choose Your Plan</h2>
-              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Start free — upgrade anytime. No contracts.</p>
+              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Every plan includes a 7-day free trial. No charge until your trial ends.</p>
+            </div>
+
+            {/* Trial callout */}
+            <div
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl mb-6 text-sm font-semibold"
+              style={{ background: 'rgba(0,212,255,0.07)', border: '1px solid rgba(0,212,255,0.25)', color: '#00d4ff' }}
+            >
+              <Gift size={16} />
+              7-day free trial · Cancel anytime · No credit card charged today
             </div>
 
             {/* Policy Acknowledgment */}
@@ -365,19 +411,29 @@ export function OnboardingPage() {
                     onClick={() => choosePlan(plan.id)}
                     disabled={saving}
                     className="w-full py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
-                    style={plan.id === 'trial'
-                      ? { background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80' }
-                      : plan.highlight
+                    style={plan.highlight
                       ? { background: 'linear-gradient(135deg, rgba(0,212,255,0.25), rgba(0,212,255,0.1))', border: '1px solid rgba(0,212,255,0.5)', color: '#00d4ff' }
                       : { background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }
                     }
                   >
-                    {saving ? '…' : plan.cta}
+                    {saving ? '…' : 'Start 7-Day Trial'}
                   </button>
                 </div>
               ))}
             </div>
-            <button onClick={() => setStep(2)} className="mt-4 text-xs tracking-wide text-zinc-600 hover:text-zinc-400 transition-colors mx-auto block">← Back</button>
+            <div className="mt-4 flex items-center justify-between">
+              <button onClick={() => setStep(2)} className="text-xs tracking-wide text-zinc-600 hover:text-zinc-400 transition-colors">← Back</button>
+              <button
+                onClick={startFreeTrial}
+                disabled={saving}
+                className="text-xs tracking-wide transition-colors disabled:opacity-40"
+                style={{ color: 'rgba(255,255,255,0.25)' }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.5)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.25)' }}
+              >
+                Skip for now — explore free →
+              </button>
+            </div>
           </div>
         )}
       </div>
