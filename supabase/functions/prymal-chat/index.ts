@@ -95,45 +95,66 @@ async function getFreshToken(
   clientId: string,
   platform: string
 ): Promise<string | null> {
-  console.log(`[DEBUG] getFreshToken: Looking for token - clientId=${clientId}, platform=${platform}`)
+  try {
+    console.log(`[DEBUG] getFreshToken START: clientId=${clientId}, platform=${platform}`)
 
-  const { data, error } = await supabase
-    .from('prymal_oauth_tokens')
-    .select('access_token, refresh_token, expires_at')
-    .eq('client_id', clientId)
-    .eq('platform', platform)
-    .single()
+    const { data, error } = await supabase
+      .from('prymal_oauth_tokens')
+      .select('access_token, refresh_token, expires_at')
+      .eq('client_id', clientId)
+      .eq('platform', platform)
+      .single()
 
-  console.log(`[DEBUG] getFreshToken query result:`, { data, error })
+    console.log(`[DEBUG] getFreshToken QUERY: data exists=${!!data}, error=${error ? error.message : 'none'}`)
 
-  if (!data) {
-    console.warn(`[WARN] No token found for clientId=${clientId}, platform=${platform}`)
+    if (error) {
+      console.warn(`[WARN] getFreshToken query error: ${error.message}`)
+      return null
+    }
+
+    if (!data) {
+      console.warn(`[WARN] No token found for clientId=${clientId}, platform=${platform}`)
+      return null
+    }
+
+    console.log(`[DEBUG] getFreshToken found token, expires_at=${data.expires_at}`)
+
+    const expiresAt = data.expires_at ? new Date(data.expires_at).getTime() : 0
+    if (Date.now() < expiresAt - 60000) {
+      console.log(`[DEBUG] getFreshToken: Token still valid`)
+      return data.access_token
+    }
+
+    if (!data.refresh_token) {
+      console.warn(`[WARN] getFreshToken: No refresh token, cannot refresh`)
+      return null
+    }
+
+    console.log(`[DEBUG] getFreshToken: Token expired, refreshing...`)
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: data.refresh_token,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+      }),
+    })
+    const tokens = await res.json()
+    console.log(`[DEBUG] getFreshToken: Refresh response - ${tokens.access_token ? 'SUCCESS' : 'FAILED'}`)
+    if (!tokens.access_token) return null
+
+    await supabase.from('prymal_oauth_tokens').update({
+      access_token: tokens.access_token,
+      expires_at: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString(),
+    }).eq('client_id', clientId).eq('platform', platform)
+
+    return tokens.access_token
+  } catch (err) {
+    console.error(`[ERROR] getFreshToken exception: ${(err as Error).message}`)
     return null
   }
-
-  const expiresAt = data.expires_at ? new Date(data.expires_at).getTime() : 0
-  if (Date.now() < expiresAt - 60000) return data.access_token
-  if (!data.refresh_token) return null
-
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: data.refresh_token,
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-    }),
-  })
-  const tokens = await res.json()
-  if (!tokens.access_token) return null
-
-  await supabase.from('prymal_oauth_tokens').update({
-    access_token: tokens.access_token,
-    expires_at: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString(),
-  }).eq('client_id', clientId).eq('platform', platform)
-
-  return tokens.access_token
 }
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
@@ -1096,8 +1117,13 @@ async function handleTool(
 
     case 'get_calendar_events': {
       requirePlan('tier2', 'Google Calendar')
+      console.log(`[DEBUG] get_calendar_events: Attempting to fetch calendar token for clientId=${clientId}`)
       const token = await getFreshToken(supabase, clientId, 'calendar')
-      if (!token) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
+      console.log(`[DEBUG] get_calendar_events: Token result - ${token ? 'SUCCESS' : 'FAILED'}, token=${token ? token.slice(0, 20) : 'null'}`)
+      if (!token) {
+        console.log(`[DEBUG] get_calendar_events: Returning error - Calendar not connected`)
+        return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
+      }
 
       const timeMin = (input.timeMin as string) ?? new Date().toISOString()
       const timeMax = (input.timeMax as string) ?? new Date(Date.now() + 7 * 86400000).toISOString()
