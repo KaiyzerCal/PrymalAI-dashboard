@@ -154,7 +154,7 @@ export function IntegrationsPage() {
   const [gbpIds, setGbpIds] = useState<{ account: string | null; location: string | null }>({ account: null, location: null })
 
   useEffect(() => {
-    if (!client?.id) return
+    if (!client) return
     async function load() {
       const [accountsRes, tokensRes] = await Promise.all([
         supabase.from('prymal_social_accounts').select('*').eq('client_id', client.id).order('platform'),
@@ -170,7 +170,7 @@ export function IntegrationsPage() {
       setAcctLoading(false)
     }
     load()
-  }, [client?.id])
+  }, [client])
 
   async function handleDisconnect(platform: string) {
     setDisconnecting(platform)
