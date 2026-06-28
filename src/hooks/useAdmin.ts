@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
-const ADMIN_EMAILS = ['projectapexai@gmail.com', 'caljohnathon@gmail.com']
+const ADMIN_EMAILS = ['projectapexai@gmail.com', 'caljohnathon@gmail.com', 'skyforgeai.studio@gmail.com']
 
 export function useAdmin() {
   const [isAdmin, setIsAdmin] = useState(false)
