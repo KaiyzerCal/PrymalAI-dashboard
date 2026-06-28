@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Mail, Calendar, HardDrive, Shield, Zap, ChevronRight, Star } from 'lucide-react'
+import { Mail, Calendar, HardDrive, Shield, Zap, ChevronRight, Star, Gift } from 'lucide-react'
 import { getAvailableTiers } from '@/lib/tierConfig'
 
 const FEATURES = [
@@ -65,6 +65,22 @@ export function LandingPage() {
       className="min-h-screen"
       style={{ background: '#060b14', color: 'white', fontFamily: 'system-ui, sans-serif' }}
     >
+      {/* Trial announcement banner */}
+      <div
+        className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-center"
+        style={{ background: 'linear-gradient(90deg, rgba(0,212,255,0.18) 0%, rgba(0,212,255,0.08) 50%, rgba(0,212,255,0.18) 100%)', borderBottom: '1px solid rgba(0,212,255,0.25)', color: '#00d4ff', letterSpacing: '0.02em' }}
+      >
+        <Gift size={13} />
+        <span>7-day free trial on every plan — no credit card required</span>
+        <button
+          onClick={() => navigate('/login')}
+          className="ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold transition-all"
+          style={{ background: 'rgba(0,212,255,0.2)', border: '1px solid rgba(0,212,255,0.4)', color: '#00d4ff' }}
+        >
+          Start free →
+        </button>
+      </div>
+
       {/* Nav */}
       <nav
         className="flex items-center justify-between px-6 py-4 sticky top-0 z-50"
@@ -146,9 +162,13 @@ export function LandingPage() {
             Try it free — no credit card
             <ChevronRight size={16} />
           </button>
-          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
+          <div
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+            style={{ background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.18)', color: 'rgba(0,212,255,0.7)' }}
+          >
+            <Gift size={11} />
             7-day free trial · Cancel anytime
-          </p>
+          </div>
         </div>
 
         {/* Chat demo mockup */}
@@ -281,9 +301,15 @@ export function LandingPage() {
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 tracking-tight">
             Simple, honest pricing.
           </h2>
-          <p className="text-center text-sm mb-16" style={{ color: 'rgba(255,255,255,0.35)' }}>
-            7-day free trial on all plans. No credit card required to start.
-          </p>
+          <div className="flex justify-center mb-16">
+            <div
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold"
+              style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.25)', color: '#00d4ff' }}
+            >
+              <Gift size={14} />
+              7-day free trial on all plans · No credit card required
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {PRICING.map((p, i) => (
               <div
@@ -305,9 +331,17 @@ export function LandingPage() {
                   </div>
                 )}
                 <div>
-                  <p className="text-xs font-semibold tracking-widest mb-1" style={{ color: 'rgba(0,212,255,0.6)' }}>
-                    {p.name.toUpperCase()}
-                  </p>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs font-semibold tracking-widest" style={{ color: 'rgba(0,212,255,0.6)' }}>
+                      {p.name.toUpperCase()}
+                    </p>
+                    <span
+                      className="text-xs font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: 'rgba(0,212,255,0.12)', border: '1px solid rgba(0,212,255,0.25)', color: '#00d4ff' }}
+                    >
+                      7 days free
+                    </span>
+                  </div>
                   <div className="flex items-end gap-1 mb-1">
                     <span className="text-4xl font-bold">{p.price}</span>
                     <span className="text-sm mb-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{p.period}</span>
