@@ -469,7 +469,7 @@ export function IntegrationsPage() {
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                   <button
                     onClick={() => startGoogleOAuth('tasks')}
-                    disabled={!planAtLeast(client?.plan ?? 'free', 'tier2')}
+                    disabled={!hasAccess('tier2')}
                     className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
                     style={{
                       background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
@@ -575,7 +575,7 @@ export function IntegrationsPage() {
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                   <button
                     onClick={() => startGoogleOAuth('docs')}
-                    disabled={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+                    disabled={!hasAccess('tier3')}
                     className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
                     style={{
                       background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
@@ -621,7 +621,7 @@ export function IntegrationsPage() {
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                   <button
                     onClick={() => startGoogleOAuth('sheets')}
-                    disabled={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+                    disabled={!hasAccess('tier3')}
                     className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
                     style={{
                       background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
@@ -667,7 +667,7 @@ export function IntegrationsPage() {
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                   <button
                     onClick={() => startGoogleOAuth('slides')}
-                    disabled={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+                    disabled={!hasAccess('tier3')}
                     className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
                     style={{
                       background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
@@ -713,7 +713,7 @@ export function IntegrationsPage() {
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                   <button
                     onClick={() => startGoogleOAuth('forms')}
-                    disabled={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+                    disabled={!hasAccess('tier3')}
                     className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
                     style={{
                       background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
@@ -759,7 +759,7 @@ export function IntegrationsPage() {
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                   <button
                     onClick={() => startGoogleOAuth('keep')}
-                    disabled={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+                    disabled={!hasAccess('tier3')}
                     className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
                     style={{
                       background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
@@ -805,7 +805,7 @@ export function IntegrationsPage() {
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                   <button
                     onClick={() => startGoogleOAuth('places')}
-                    disabled={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+                    disabled={!hasAccess('tier3')}
                     className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
                     style={{
                       background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
@@ -1473,7 +1473,7 @@ export function IntegrationsPage() {
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                   <button
                     onClick={() => startGoogleOAuth('meet')}
-                    disabled={!planAtLeast(client?.plan ?? 'free', 'tier4')}
+                    disabled={!hasAccess('tier4')}
                     className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
                     style={{
                       background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
@@ -1519,7 +1519,7 @@ export function IntegrationsPage() {
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                   <button
                     onClick={() => startGoogleOAuth('contacts')}
-                    disabled={!planAtLeast(client?.plan ?? 'free', 'tier4')}
+                    disabled={!hasAccess('tier4')}
                     className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
                     style={{
                       background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
@@ -1565,7 +1565,7 @@ export function IntegrationsPage() {
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
                   <button
                     onClick={() => startGoogleOAuth('photos')}
-                    disabled={!planAtLeast(client?.plan ?? 'free', 'tier4')}
+                    disabled={!hasAccess('tier4')}
                     className="px-4 py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
                     style={{
                       background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(0,212,255,0.08) 100%)',
