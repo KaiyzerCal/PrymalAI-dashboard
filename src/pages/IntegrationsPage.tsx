@@ -1,9 +1,10 @@
 import { useState, useEffect, type ReactNode, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useClient } from '@/hooks/useClient'
+import { useAdmin } from '@/hooks/useAdmin'
 import { CheckCircle, Globe, ChevronDown, CreditCard, Zap, Mail, Calendar, HardDrive, Edit2, Lock, Video } from 'lucide-react'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
-import { TIER_CONFIGS, planAtLeast } from '@/lib/tierConfig'
+import { TIER_CONFIGS, planAtLeast, type TierLevel } from '@/lib/tierConfig'
 
 type Tab = 'brand' | 'integrations' | 'billing' | 'account'
 
@@ -110,6 +111,7 @@ function startGoogleOAuth(platform: string) {
 
 export function IntegrationsPage() {
   const { client, loading: clientLoading, update } = useClient()
+  const { isAdmin } = useAdmin()
   const [tab, setTab] = useState<Tab>('integrations')
   const anthropicKey = useAnthropicKey()
   const geminiKey = useGeminiKey()
@@ -121,7 +123,7 @@ export function IntegrationsPage() {
   const [acctLoading, setAcctLoading] = useState(true)
   const [disconnecting, setDisconnecting] = useState<string | null>(null)
   const [disconnectError, setDisconnectError] = useState<string | null>(null)
-  const [expandedTiers, setExpandedTiers] = useState<Set<string>>(new Set(['tier1', 'tier2', 'tier3', 'tier4']))
+  const [expandedTiers, setExpandedTiers] = useState<Set<string>>(new Set())
   const googleAccount = accounts.find(a => a.platform === 'google')
 
   const toggleTier = (tier: string) => {
@@ -132,6 +134,11 @@ export function IntegrationsPage() {
       newExpanded.add(tier)
     }
     setExpandedTiers(newExpanded)
+  }
+
+  const hasAccess = (requiredTier: TierLevel): boolean => {
+    if (isAdmin) return true
+    return planAtLeast(client?.plan ?? 'free', requiredTier)
   }
 
   useEffect(() => {
@@ -343,7 +350,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('gmail')}
               tier="tier1"
               tierName={TIER_CONFIGS.tier1.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier1')}
+              locked={!hasAccess('tier1')}
             >
               {!acctLoading && !connectedPlatforms.has('gmail') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -403,7 +410,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('calendar')}
               tier="tier2"
               tierName={TIER_CONFIGS.tier2.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier2')}
+              locked={!hasAccess('tier2')}
             >
               {!acctLoading && !connectedPlatforms.has('calendar') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -456,7 +463,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('tasks')}
               tier="tier2"
               tierName={TIER_CONFIGS.tier2.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier2')}
+              locked={!hasAccess('tier2')}
             >
               {!acctLoading && !connectedPlatforms.has('tasks') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -509,7 +516,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('drive')}
               tier="tier3"
               tierName={TIER_CONFIGS.tier3.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+              locked={!hasAccess('tier3')}
             >
               {!acctLoading && !connectedPlatforms.has('drive') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -562,7 +569,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('docs')}
               tier="tier3"
               tierName={TIER_CONFIGS.tier3.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+              locked={!hasAccess('tier3')}
             >
               {!acctLoading && !connectedPlatforms.has('docs') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -608,7 +615,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('sheets')}
               tier="tier3"
               tierName={TIER_CONFIGS.tier3.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+              locked={!hasAccess('tier3')}
             >
               {!acctLoading && !connectedPlatforms.has('sheets') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -654,7 +661,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('slides')}
               tier="tier3"
               tierName={TIER_CONFIGS.tier3.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+              locked={!hasAccess('tier3')}
             >
               {!acctLoading && !connectedPlatforms.has('slides') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -700,7 +707,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('forms')}
               tier="tier3"
               tierName={TIER_CONFIGS.tier3.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+              locked={!hasAccess('tier3')}
             >
               {!acctLoading && !connectedPlatforms.has('forms') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -746,7 +753,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('keep')}
               tier="tier3"
               tierName={TIER_CONFIGS.tier3.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+              locked={!hasAccess('tier3')}
             >
               {!acctLoading && !connectedPlatforms.has('keep') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -792,7 +799,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('places')}
               tier="tier3"
               tierName={TIER_CONFIGS.tier3.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier3')}
+              locked={!hasAccess('tier3')}
             >
               {!acctLoading && !connectedPlatforms.has('places') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -1460,7 +1467,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('meet')}
               tier="tier4"
               tierName={TIER_CONFIGS.tier4.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier4')}
+              locked={!hasAccess('tier4')}
             >
               {!acctLoading && !connectedPlatforms.has('meet') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -1506,7 +1513,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('contacts')}
               tier="tier4"
               tierName={TIER_CONFIGS.tier4.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier4')}
+              locked={!hasAccess('tier4')}
             >
               {!acctLoading && !connectedPlatforms.has('contacts') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
@@ -1552,7 +1559,7 @@ export function IntegrationsPage() {
               connected={connectedPlatforms.has('photos')}
               tier="tier4"
               tierName={TIER_CONFIGS.tier4.displayName}
-              locked={!planAtLeast(client?.plan ?? 'free', 'tier4')}
+              locked={!hasAccess('tier4')}
             >
               {!acctLoading && !connectedPlatforms.has('photos') && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(0,212,255,0.07)' }}>
