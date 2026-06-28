@@ -1116,14 +1116,16 @@ async function handleTool(
     // ── Starter+ : Calendar ──
 
     case 'get_calendar_events': {
+      console.error(`🔴 CALENDAR REQUEST: clientId=${clientId}`)
       requirePlan('tier2', 'Google Calendar')
-      console.log(`[DEBUG] get_calendar_events: Attempting to fetch calendar token for clientId=${clientId}`)
+      console.error(`🔴 CALENDAR: Fetching token for platform=calendar, clientId=${clientId}`)
       const token = await getFreshToken(supabase, clientId, 'calendar')
-      console.log(`[DEBUG] get_calendar_events: Token result - ${token ? 'SUCCESS' : 'FAILED'}, token=${token ? token.slice(0, 20) : 'null'}`)
+      console.error(`🔴 CALENDAR: Token returned - ${token ? 'FOUND' : 'NOT FOUND'} (${token ? token.slice(0, 30) + '...' : 'null'})`)
       if (!token) {
-        console.log(`[DEBUG] get_calendar_events: Returning error - Calendar not connected`)
+        console.error(`🔴 CALENDAR: No token found, returning error`)
         return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
       }
+      console.error(`🔴 CALENDAR: Proceeding with token lookup`)
 
       const timeMin = (input.timeMin as string) ?? new Date().toISOString()
       const timeMax = (input.timeMax as string) ?? new Date(Date.now() + 7 * 86400000).toISOString()
