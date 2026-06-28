@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
-import { getAgent } from '@/lib/agents'
+import { getAgent, type Capability } from '@/lib/agents'
+import { useClient } from '@/hooks/useClient'
 import { formatRelative, formatDate } from '@/lib/utils'
 import {
   Check, X, Edit2, ChevronDown, ChevronUp,
-  Star, Flag, CheckCircle, MessageSquare, Globe, Play, Plus,
+  Star, Flag, CheckCircle, MessageSquare, Globe, Play, Plus, Lock,
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1122,9 +1123,33 @@ export function AgentHistory({ agentId }: { agentId: string }) {
 export function AgentPage() {
   const { id } = useParams<{ id: string }>()
   const agent = id ? getAgent(id) : undefined
+  const { client } = useClient()
 
   const [pendingItems, setPendingItems] = useState<ApprovalItem[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Filter capabilities by user's plan tier
+  const getAvailableCapabilities = () => {
+    if (!agent) return []
+    const planRank: Record<string, number> = { free: 0, tier1: 1, tier2: 2, tier3: 3, tier4: 4, trial: 0, starter: 1, pro: 2, agency: 3 }
+    const userTierRank = planRank[client?.plan ?? 'free'] ?? 0
+
+    return agent.capabilities.filter(cap => {
+      if (typeof cap === 'string') return true // No tier restriction
+      return !cap.minTier || (planRank[cap.minTier] ?? 99) <= userTierRank
+    })
+  }
+
+  const getLockedCapabilities = () => {
+    if (!agent) return []
+    const planRank: Record<string, number> = { free: 0, tier1: 1, tier2: 2, tier3: 3, tier4: 4, trial: 0, starter: 1, pro: 2, agency: 3 }
+    const userTierRank = planRank[client?.plan ?? 'free'] ?? 0
+
+    return agent.capabilities.filter(cap => {
+      if (typeof cap === 'string') return false
+      return cap.minTier && (planRank[cap.minTier] ?? 99) > userTierRank
+    })
+  }
 
   useEffect(() => {
     if (!id) return
@@ -1203,19 +1228,44 @@ export function AgentPage() {
               {agent.description}
             </p>
             <div className="flex flex-wrap gap-2">
-              {agent.capabilities.map(cap => (
-                <span
-                  key={cap}
-                  className="text-xs px-2.5 py-1 rounded tracking-wide"
-                  style={{
-                    background: 'rgba(0,212,255,0.06)',
-                    border: '1px solid rgba(0,212,255,0.15)',
-                    color: 'rgba(0,212,255,0.8)',
-                  }}
-                >
-                  {cap}
-                </span>
-              ))}
+              {getAvailableCapabilities().map(cap => {
+                const capName = typeof cap === 'string' ? cap : cap.name
+                return (
+                  <span
+                    key={capName}
+                    className="text-xs px-2.5 py-1 rounded tracking-wide"
+                    style={{
+                      background: 'rgba(0,212,255,0.06)',
+                      border: '1px solid rgba(0,212,255,0.15)',
+                      color: 'rgba(0,212,255,0.8)',
+                    }}
+                  >
+                    {capName}
+                  </span>
+                )
+              })}
+              {getLockedCapabilities().length > 0 && (
+                <>
+                  {getLockedCapabilities().map(cap => {
+                    const c = cap as Capability
+                    return (
+                      <span
+                        key={c.name}
+                        className="text-xs px-2.5 py-1 rounded tracking-wide flex items-center gap-1"
+                        style={{
+                          background: 'rgba(100,100,100,0.1)',
+                          border: '1px solid rgba(100,100,100,0.2)',
+                          color: 'rgba(200,200,200,0.5)',
+                        }}
+                        title={`Unlock in ${c.minTier?.toUpperCase()}`}
+                      >
+                        <Lock size={10} />
+                        {c.name}
+                      </span>
+                    )
+                  })}
+                </>
+              )}
             </div>
           </div>
         </div>

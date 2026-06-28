@@ -20,21 +20,36 @@ export function LoginPage() {
     setMessage(null)
 
     if (mode === 'signup') {
-      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
-      if (error) {
-        setMessage({ text: error.message, ok: false })
-      } else if (data.user) {
-        // create initial client record so onboarding can find/update it
-        await supabase.from('prymal_clients').upsert({
-          user_id: data.user.id,
-          owner_email: email,
-          contact_name: name,
-          plan: 'trial',
-          status: 'active',
-          trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          onboarding_complete: false,
-        }, { onConflict: 'user_id' })
-        setMessage({ text: 'Account created! Redirecting to onboarding…', ok: true })
+      try {
+        const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
+        if (error) {
+          setMessage({ text: error.message, ok: false })
+        } else if (data.user) {
+          // create initial client record so onboarding can find/update it
+          await supabase.from('prymal_clients').upsert({
+            user_id: data.user.id,
+            owner_email: email,
+            contact_name: name,
+            plan: 'trial',
+            status: 'active',
+            trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+            onboarding_complete: false,
+          }, { onConflict: 'user_id' })
+
+          // Check if session is immediately available (email confirmation disabled)
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session) {
+            // Session available immediately — go straight to onboarding
+            navigate('/onboarding')
+          } else {
+            // Email confirmation required — ask user to check their email then sign in
+            setMessage({ text: 'Account created! Check your email to confirm, then sign in.', ok: true })
+            setMode('password')
+            setPassword('')
+          }
+        }
+      } catch (err) {
+        setMessage({ text: (err as Error).message || 'Signup failed', ok: false })
       }
     } else if (mode === 'magic') {
       const { error } = await supabase.auth.signInWithOtp({ email })

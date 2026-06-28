@@ -49,8 +49,29 @@ export function ChatWidget() {
   useEffect(() => {
     const saved = sessionStorage.getItem('prymal_chat_messages')
     const savedHistory = sessionStorage.getItem('prymal_chat_history')
-    if (saved) setMessages(JSON.parse(saved))
-    if (savedHistory) setHistory(JSON.parse(savedHistory))
+
+    // Clear corrupted history containing the problematic message
+    if (saved) {
+      try {
+        const msgs = JSON.parse(saved)
+        const hasCorruptedMessage = msgs.some((m: Message) =>
+          m.content?.includes('Agent capabilities updated') ||
+          m.content?.includes('complete working implementations')
+        )
+        if (hasCorruptedMessage) {
+          sessionStorage.removeItem('prymal_chat_messages')
+          sessionStorage.removeItem('prymal_chat_history')
+          setMessages([INITIAL_MESSAGE])
+          setHistory([])
+        } else {
+          setMessages(msgs)
+          if (savedHistory) setHistory(JSON.parse(savedHistory))
+        }
+      } catch {
+        setMessages([INITIAL_MESSAGE])
+      }
+    }
+
     setInitialized(true)
   }, [])
 

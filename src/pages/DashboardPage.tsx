@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useClient } from '@/hooks/useClient'
-import { AGENTS } from '@/lib/agents'
+import { useAdmin } from '@/hooks/useAdmin'
+import { AGENTS, AGENT_TO_TIER } from '@/lib/agents'
+import { planAtLeast } from '@/lib/tierConfig'
 import { ChevronRight, Clock, Activity } from 'lucide-react'
 import { SetupChecklist } from '@/components/SetupChecklist'
 
@@ -17,8 +19,15 @@ interface AgentStats {
 
 export function DashboardPage() {
   const { client } = useClient()
-  const isAdmin = client?.owner_email === 'caljohnathon@gmail.com' || client?.owner_email === 'skyforgeai.studio@gmail.com'
-  const visibleAgents = isAdmin ? AGENTS : AGENTS.filter(a => a.id === 'google')
+  const { isAdmin } = useAdmin()
+
+  // Filter agents based on tier - admins see all agents
+  const visibleAgents = isAdmin
+    ? AGENTS
+    : AGENTS.filter(agent => {
+        const requiredTier = AGENT_TO_TIER[agent.id]
+        return requiredTier && planAtLeast(client?.plan ?? 'free', requiredTier)
+      })
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({})
   const [stats, setStats] = useState<Partial<AgentStats>>({})
   const [countsLoading, setCountsLoading] = useState(true)

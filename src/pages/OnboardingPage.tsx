@@ -1,57 +1,107 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase, FUNCTION_BASE } from '@/lib/supabase'
-import { Check } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { Check, ChevronDown } from 'lucide-react'
 
 const PLANS = [
   {
-    id: 'trial',
-    name: 'Free Trial',
-    price: '$0',
-    period: '14 days',
-    description: 'Full access to all 6 agents',
-    features: ['All 6 AI agents', 'Unlimited approvals', 'Email & booking automation', 'No credit card required'],
-    cta: 'Start Free Trial',
+    id: 'tier1',
+    name: 'Tier 1',
+    price: '$17',
+    period: '/month',
+    description: 'Email mastery',
+    features: ['Email composition & drafting', 'Read, send, manage emails', 'Labels, filters, threads', 'Schedule sends & auto-reply'],
+    cta: 'Start with Tier 1',
     highlight: false,
   },
   {
-    id: 'starter',
-    name: 'Starter',
-    price: '$299',
+    id: 'tier2',
+    name: 'Tier 2',
+    price: '$47',
     period: '/month',
-    description: 'For single-location businesses',
-    features: ['All 6 AI agents', '1 business location', 'Google review automation', 'Email outreach (500/mo)', 'Priority support'],
-    cta: 'Choose Starter',
+    description: 'Everything in Tier 1 +',
+    features: ['Everything in Tier 1', 'Calendar management', 'Appointment scheduling', 'Google Tasks integration'],
+    cta: 'Start with Tier 2',
     highlight: false,
   },
   {
-    id: 'pro',
-    name: 'Pro',
-    price: '$599',
+    id: 'tier3',
+    name: 'Tier 3',
+    price: '$97',
     period: '/month',
-    description: 'For growing businesses',
-    features: ['All 6 AI agents', 'Up to 3 locations', 'Unlimited email outreach', 'Webhook integrations', 'Weekly intel briefings', 'Dedicated onboarding'],
-    cta: 'Choose Pro',
+    description: 'Everything in Tier 2 +',
+    features: ['Everything in Tier 2', 'Google Drive management', 'Docs, Sheets, Slides', 'Content automation'],
+    cta: 'Start with Tier 3',
     highlight: true,
   },
   {
-    id: 'agency',
-    name: 'Agency',
-    price: '$1,499',
+    id: 'tier4',
+    name: 'Tier 4',
+    price: '$147',
     period: '/month',
-    description: 'For agencies & enterprises',
-    features: ['All 6 AI agents', 'Unlimited locations', 'White-label dashboard', 'API access', 'Custom integrations', 'Dedicated account manager'],
-    cta: 'Choose Agency',
+    description: 'Everything in Tier 3 +',
+    features: ['Everything in Tier 3', 'Google Meet scheduling', 'Google Contacts management', 'Google Business Profile'],
+    cta: 'Start with Tier 4',
     highlight: false,
   },
 ]
 
 const INDUSTRIES = ['Fitness & Wellness', 'Restaurant & Food', 'Retail', 'Healthcare', 'Legal', 'Real Estate', 'Home Services', 'Beauty & Spa', 'Auto', 'Other']
 
+function CustomDropdown({ value, onChange, options, placeholder }: { value: string; onChange: (val: string) => void; options: string[]; placeholder: string }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    if (open) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full rounded-lg px-3 py-2.5 text-sm text-left text-white placeholder-zinc-600 focus:outline-none transition-all flex items-center justify-between"
+        style={{ background: 'rgba(0,212,255,0.04)', border: open ? '1px solid rgba(0,212,255,0.4)' : '1px solid rgba(0,212,255,0.12)' }}
+      >
+        <span>{value || placeholder}</span>
+        <ChevronDown size={16} style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+      </button>
+      {open && (
+        <div
+          className="absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg z-50"
+          style={{ background: '#ffffff', border: '1px solid rgba(0,212,255,0.2)' }}
+        >
+          {options.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => {
+                onChange(opt)
+                setOpen(false)
+              }}
+              className="w-full px-3 py-2 text-sm text-left text-gray-900 hover:bg-blue-50 transition-colors first:rounded-t-lg last:rounded-b-lg"
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function OnboardingPage() {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
+  const [policiesAcknowledged, setPoliciesAcknowledged] = useState(false)
   const [form, setForm] = useState({
     business_name: '',
     industry: '',
@@ -114,32 +164,23 @@ export function OnboardingPage() {
   }
 
   async function choosePlan(planId: string) {
-    if (planId === 'trial') {
-      setSaving(true)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) await supabase.from('prymal_clients').update({ onboarding_complete: true }).eq('user_id', user.id)
-      setSaving(false)
-      navigate('/')
+    if (!policiesAcknowledged) {
+      alert('Please acknowledge our policies before continuing')
       return
     }
     setSaving(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch(`${FUNCTION_BASE}/prymal-stripe-checkout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ plan: planId }),
-      })
-      const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        alert(data.error ?? 'Stripe not configured yet. Starting trial instead.')
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) await supabase.from('prymal_clients').update({ onboarding_complete: true }).eq('user_id', user.id)
-        navigate('/')
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        // Update plan and mark onboarding complete
+        await supabase.from('prymal_clients').update({
+          plan: planId,
+          onboarding_complete: true
+        }).eq('user_id', user.id)
       }
-    } catch {
+      navigate('/')
+    } catch (err) {
+      console.error('Error choosing plan:', err)
       navigate('/')
     } finally {
       setSaving(false)
@@ -207,13 +248,7 @@ export function OnboardingPage() {
               ))}
               <div>
                 <label className="block text-xs font-semibold tracking-widest mb-1.5" style={{ color: 'rgba(0,212,255,0.5)' }}>INDUSTRY</label>
-                <select {...field('industry')} className={inputClass} style={{ ...inputStyle, colorScheme: 'dark' }}
-                  onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.4)' }}
-                  onBlur={e => { e.currentTarget.style.border = '1px solid rgba(0,212,255,0.12)' }}
-                >
-                  <option value="">Select industry…</option>
-                  {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
-                </select>
+                <CustomDropdown value={form.industry} onChange={e => setForm(f => ({ ...f, industry: e }))} options={INDUSTRIES} placeholder="Select industry…" />
               </div>
             </div>
             <button
@@ -268,6 +303,34 @@ export function OnboardingPage() {
               <h2 className="text-white font-bold tracking-wide">Choose Your Plan</h2>
               <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Start free — upgrade anytime. No contracts.</p>
             </div>
+
+            {/* Policy Acknowledgment */}
+            <div className="mb-8 p-4 rounded-lg" style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)' }}>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={policiesAcknowledged}
+                  onChange={e => setPoliciesAcknowledged(e.target.checked)}
+                  className="mt-1 w-4 h-4 cursor-pointer"
+                  style={{ accentColor: '#00d4ff' }}
+                />
+                <span className="text-xs text-slate-300">
+                  I agree to the{' '}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">
+                    Privacy Policy
+                  </a>
+                  {', '}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">
+                    Terms of Service
+                  </a>
+                  {', and '}
+                  <a href="/security" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">
+                    Security Policy
+                  </a>
+                </span>
+              </label>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {PLANS.map(plan => (
                 <div
