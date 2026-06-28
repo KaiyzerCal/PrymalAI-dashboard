@@ -698,7 +698,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Tier 4: Google Meet ──
   {
     name: 'schedule_meet',
-    description: '[Tier 4] Schedule a Google Meet call and add to calendar.',
+    description: '[Tier 4+] Schedule a Google Meet call and add to calendar.',
     input_schema: {
       type: 'object',
       properties: {
@@ -715,7 +715,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Tier 4: Google Contacts ──
   {
     name: 'create_contact',
-    description: '[Tier 4] Create a new contact in Google Contacts.',
+    description: '[Tier 4+] Create a new contact in Google Contacts.',
     input_schema: {
       type: 'object',
       properties: {
@@ -732,7 +732,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'update_contact',
-    description: '[Tier 4] Update a contact in Google Contacts.',
+    description: '[Tier 4+] Update a contact in Google Contacts.',
     input_schema: {
       type: 'object',
       properties: {
@@ -750,7 +750,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'delete_contact',
-    description: '[Tier 4] Delete a contact from Google Contacts.',
+    description: '[Tier 4+] Delete a contact from Google Contacts.',
     input_schema: {
       type: 'object',
       properties: {
@@ -761,7 +761,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'list_contacts',
-    description: '[Tier 4] List contacts from Google Contacts.',
+    description: '[Tier 4+] List contacts from Google Contacts.',
     input_schema: {
       type: 'object',
       properties: {
@@ -774,7 +774,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Tier 4: Google Business Profile ──
   {
     name: 'respond_to_review',
-    description: '[Tier 4] Respond to a Google Business Profile review.',
+    description: '[Tier 4+] Respond to a Google Business Profile review.',
     input_schema: {
       type: 'object',
       properties: {
@@ -786,7 +786,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'create_post',
-    description: '[Tier 4] Create a post on Google Business Profile.',
+    description: '[Tier 4+] Create a post on Google Business Profile.',
     input_schema: {
       type: 'object',
       properties: {
@@ -802,7 +802,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Tier 4: Google Photos ──
   {
     name: 'upload_photo',
-    description: '[Tier 4] Upload a photo to Google Photos.',
+    description: '[Tier 4+] Upload a photo to Google Photos.',
     input_schema: {
       type: 'object',
       properties: {
@@ -814,7 +814,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'create_album',
-    description: '[Tier 4] Create an album in Google Photos.',
+    description: '[Tier 4+] Create an album in Google Photos.',
     input_schema: {
       type: 'object',
       properties: {
@@ -826,7 +826,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'organize_photos',
-    description: '[Tier 4] Add photos to an album in Google Photos.',
+    description: '[Tier 4+] Add photos to an album in Google Photos.',
     input_schema: {
       type: 'object',
       properties: {
@@ -838,7 +838,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'find_duplicate_photos',
-    description: '[Tier 4] Detect and identify duplicate or very similar photos in Google Photos (exact matches, near-duplicates, similar compositions).',
+    description: '[Tier 4+] Detect and identify duplicate or very similar photos in Google Photos (exact matches, near-duplicates, similar compositions).',
     input_schema: {
       type: 'object',
       properties: {
@@ -849,7 +849,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'delete_duplicate_photos',
-    description: '[Tier 4] Remove duplicate photos, intelligently keeping the best quality version from each group.',
+    description: '[Tier 4+] Remove duplicate photos, intelligently keeping the best quality version from each group.',
     input_schema: {
       type: 'object',
       properties: {
@@ -863,7 +863,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'auto_organize_photos',
-    description: '[Tier 4] Intelligently organize photos by date, location, or detected content (people, objects, scenes).',
+    description: '[Tier 4+] Intelligently organize photos by date, location, or detected content (people, objects, scenes).',
     input_schema: {
       type: 'object',
       properties: {
