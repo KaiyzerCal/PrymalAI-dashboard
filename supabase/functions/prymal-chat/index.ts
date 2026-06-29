@@ -3647,6 +3647,44 @@ Deno.serve(async (req) => {
     }
 
     const clientPlan = validatePlan(clientRow.plan)
+    const isTrial = clientPlan === 'trial'
+
+    // ── Trial action cap enforcement (server-side, hard requirement) ──────────
+    let trialActionsUsed = 0
+    let trialDailyActions = 0
+    if (isTrial) {
+      const { data: capRow } = await supabase
+        .from('prymal_clients')
+        .select('trial_actions_used, trial_daily_actions, trial_daily_reset_date')
+        .eq('id', clientRow.id)
+        .single()
+
+      const today = new Date().toISOString().split('T')[0]
+      const dailyReset = capRow?.trial_daily_reset_date !== today
+      trialActionsUsed = capRow?.trial_actions_used ?? 0
+      trialDailyActions = dailyReset ? 0 : (capRow?.trial_daily_actions ?? 0)
+
+      // Hard cap: 75 total actions per trial
+      if (trialActionsUsed >= 75) {
+        return new Response(JSON.stringify({
+          reply: "You've used all **75 trial actions** — great run! 🎉\n\nUpgrade now to keep going. Your **$5 trial credit** applies directly to your first month.\n\n[Upgrade and continue →](/upgrade)",
+          trial_limit_reached: true,
+          trial_actions_used: trialActionsUsed,
+          trial_actions_remaining: 0,
+        }), { headers: { 'Content-Type': 'application/json', ...CORS } })
+      }
+
+      // Soft cap: ~20 per day (stops burning all 75 in one session)
+      if (trialDailyActions >= 20) {
+        return new Response(JSON.stringify({
+          reply: "You've hit today's **soft limit of 20 actions** — this keeps your trial spread across the week so you can see what Prymal can really do.\n\nCome back tomorrow, or **upgrade now** to remove the daily cap entirely.\n\n[Upgrade and continue →](/upgrade)",
+          trial_daily_limit: true,
+          trial_actions_used: trialActionsUsed,
+          trial_actions_remaining: 75 - trialActionsUsed,
+        }), { headers: { 'Content-Type': 'application/json', ...CORS } })
+      }
+    }
+
     const geminiKey = (clientRow.gemini_api_key as string | null) ?? ''
     const anthropicKey = (clientRow.anthropic_api_key as string | null) ?? ''
 
@@ -3683,7 +3721,21 @@ Deno.serve(async (req) => {
       )
     }
 
-    return new Response(JSON.stringify({ reply: finalText }), {
+    // ── Increment trial counter after a successful model call ─────────────────
+    let trialActionsRemaining: number | null = null
+    if (isTrial) {
+      await supabase.rpc('increment_trial_action', { p_client_id: clientRow.id })
+      trialActionsRemaining = Math.max(0, 75 - (trialActionsUsed + 1))
+    }
+
+    return new Response(JSON.stringify({
+      reply: finalText,
+      ...(isTrial ? {
+        trial_actions_used: trialActionsUsed + 1,
+        trial_actions_remaining: trialActionsRemaining,
+        trial_daily_actions: trialDailyActions + 1,
+      } : {}),
+    }), {
       headers: { 'Content-Type': 'application/json', ...CORS }
     })
 

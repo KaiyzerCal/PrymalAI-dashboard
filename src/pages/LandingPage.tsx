@@ -71,13 +71,13 @@ export function LandingPage() {
         style={{ background: 'linear-gradient(90deg, rgba(0,212,255,0.18) 0%, rgba(0,212,255,0.08) 50%, rgba(0,212,255,0.18) 100%)', borderBottom: '1px solid rgba(0,212,255,0.25)', color: '#00d4ff', letterSpacing: '0.02em' }}
       >
         <Gift size={13} />
-        <span>7-day free trial on every plan — no credit card required</span>
+        <span>7-day trial for $5 — credited toward your first month if you upgrade</span>
         <button
           onClick={() => navigate('/login')}
           className="ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold transition-all"
           style={{ background: 'rgba(0,212,255,0.2)', border: '1px solid rgba(0,212,255,0.4)', color: '#00d4ff' }}
         >
-          Start free →
+          Start for $5 →
         </button>
       </div>
 
@@ -159,7 +159,7 @@ export function LandingPage() {
             onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 0 60px rgba(0,212,255,0.25)' }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 0 40px rgba(0,212,255,0.15)' }}
           >
-            Try it free — no credit card
+            Start 7-day trial for $5
             <ChevronRight size={16} />
           </button>
           <div
@@ -167,7 +167,7 @@ export function LandingPage() {
             style={{ background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.18)', color: 'rgba(0,212,255,0.7)' }}
           >
             <Gift size={11} />
-            7-day free trial · Cancel anytime
+            $5 credited toward month 1 if you upgrade
           </div>
         </div>
 
@@ -307,7 +307,7 @@ export function LandingPage() {
               style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.25)', color: '#00d4ff' }}
             >
               <Gift size={14} />
-              7-day free trial on all plans · No credit card required
+              $5 gets you 7 days + 75 AI actions · Credited toward month 1 if you upgrade
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -339,7 +339,7 @@ export function LandingPage() {
                       className="text-xs font-bold px-2 py-0.5 rounded-full"
                       style={{ background: 'rgba(0,212,255,0.12)', border: '1px solid rgba(0,212,255,0.25)', color: '#00d4ff' }}
                     >
-                      7 days free
+                      $5 trial
                     </span>
                   </div>
                   <div className="flex items-end gap-1 mb-1">

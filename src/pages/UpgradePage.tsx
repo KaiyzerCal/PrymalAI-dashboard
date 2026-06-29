@@ -56,7 +56,7 @@ export function UpgradePage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ plan: planId }),
+        body: JSON.stringify({ plan: planId, fromTrial: true }),
       })
       const data = await res.json()
       if (data.url) {
@@ -109,7 +109,7 @@ export function UpgradePage() {
           style={{ background: 'rgba(0,212,255,0.07)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }}
         >
           <Gift size={15} />
-          All plans include a new 7-day trial period · Cancel anytime
+          Your $5 trial credit is applied automatically — first month is $5 off
         </div>
 
         {/* Plans */}

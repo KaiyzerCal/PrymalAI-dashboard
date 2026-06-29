@@ -11,6 +11,7 @@ interface ChatMessage {
 
 interface DisplayMessage extends ChatMessage {
   isError?: boolean
+  isTrialLimit?: boolean
 }
 
 interface ISpeechRecognition extends EventTarget {
@@ -319,7 +320,8 @@ export function ChatWidget() {
       }
 
       // SUCCESS: Add AI response to both display and history
-      const assistantDisplayMsg: DisplayMessage = { role: 'assistant', content: reply }
+      const isTrialLimit = !!(data as Record<string, unknown>).trial_limit_reached || !!(data as Record<string, unknown>).trial_daily_limit
+      const assistantDisplayMsg: DisplayMessage = { role: 'assistant', content: reply, isTrialLimit }
       setDisplayMessages(prev => [...prev, assistantDisplayMsg])
 
       const assistantHistoryMsg: ChatMessage = { role: 'assistant', content: reply }
@@ -445,15 +447,28 @@ export function ChatWidget() {
                       ? 'rgba(0,212,255,0.2)'
                       : msg.isError
                       ? 'rgba(255,100,100,0.2)'
+                      : msg.isTrialLimit
+                      ? 'rgba(255,160,0,0.12)'
                       : 'rgba(0,212,255,0.1)',
                     color: msg.isError ? '#ff6464' : msg.role === 'user' ? '#00d4ff' : '#fff',
-                    borderLeft: msg.isError ? '2px solid #ff6464' : 'none',
+                    borderLeft: msg.isError ? '2px solid #ff6464' : msg.isTrialLimit ? '2px solid #ffa500' : 'none',
                     lineHeight: '1.5',
                   }}
                 >
                   {msg.role === 'assistant' && !msg.isError
                     ? renderMarkdown(msg.content)
                     : msg.content}
+                  {msg.isTrialLimit && (
+                    <div className="mt-3">
+                      <a
+                        href="/upgrade"
+                        className="inline-block px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all"
+                        style={{ background: 'rgba(0,212,255,0.2)', border: '1px solid rgba(0,212,255,0.4)', color: '#00d4ff' }}
+                      >
+                        Upgrade now — $5 credited to first month →
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

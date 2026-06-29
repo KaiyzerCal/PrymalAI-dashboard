@@ -173,19 +173,20 @@ export function OnboardingPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { navigate('/login'); return }
 
-      // Mark onboarding complete so the return URL from Stripe lands on dashboard
+      // Mark onboarding complete and store which paid plan they intend to upgrade to
       await supabase.from('prymal_clients').update({
         onboarding_complete: true,
+        intended_plan: planId,
       }).eq('user_id', session.user.id)
 
-      // Call Stripe checkout Edge Function
+      // Charge $5 trial fee — plan selection remembered for when they upgrade
       const res = await fetch(`${FUNCTION_BASE}/prymal-stripe-checkout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ plan: planId }),
+        body: JSON.stringify({ plan: 'trial_access' }),
       })
       const data = await res.json()
       if (data.url) {
@@ -337,17 +338,24 @@ export function OnboardingPage() {
         {step === 3 && (
           <div>
             <div className="text-center mb-6">
-              <h2 className="text-white font-bold tracking-wide">Choose Your Plan</h2>
-              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Every plan includes a 7-day free trial. No charge until your trial ends.</p>
+              <h2 className="text-white font-bold tracking-wide">Start Your 7-Day Trial for $5</h2>
+              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Pick the plan you want after the trial. $5 credited toward month 1.</p>
             </div>
 
             {/* Trial callout */}
             <div
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl mb-6 text-sm font-semibold"
-              style={{ background: 'rgba(0,212,255,0.07)', border: '1px solid rgba(0,212,255,0.25)', color: '#00d4ff' }}
+              className="rounded-xl mb-6 p-4"
+              style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)' }}
             >
-              <Gift size={16} />
-              7-day free trial · Cancel anytime · No credit card charged today
+              <div className="flex items-center gap-2 mb-2 text-sm font-bold" style={{ color: '#00d4ff' }}>
+                <Gift size={15} />
+                7-day trial for $5 — credited toward your first month
+              </div>
+              <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                75 AI actions included · ~20/day soft cap · Haiku model · No surprise charges —
+                if you don't upgrade after the trial, nothing more is billed.
+                Your $5 applies as credit when you choose a paid plan.
+              </p>
             </div>
 
             {/* Policy Acknowledgment */}
@@ -416,7 +424,7 @@ export function OnboardingPage() {
                       : { background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }
                     }
                   >
-                    {saving ? '…' : 'Start 7-Day Trial'}
+                    {saving ? '…' : 'Start for $5 — 7-Day Trial'}
                   </button>
                 </div>
               ))}
