@@ -39,7 +39,7 @@ const TRUST_POINTS = [
   {
     icon: <Trash2 size={18} style={{ color: '#00d4ff' }} />,
     title: 'Delete everything, anytime.',
-    description: 'Request full account deletion and every piece of your data — conversation history, stored context, OAuth tokens — is purged within 24 hours.',
+    description: 'Request full account deletion and every piece of your data — conversation history, stored context, OAuth tokens — is purged.',
   },
 ]
 
@@ -277,7 +277,7 @@ export function LandingPage() {
             SECURITY & CONTROL
           </p>
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 tracking-tight">
-            We built this so you never have to trust us blindly.
+            Built on Trust.
           </h2>
           <p className="text-base text-center mb-14" style={{ color: 'rgba(255,255,255,0.35)', maxWidth: '500px', margin: '0 auto 3.5rem' }}>
             You're handing an AI access to your most sensitive tools. Here's exactly how we've structured that.
@@ -371,7 +371,7 @@ export function LandingPage() {
 
                 {p.apis && p.apis.length > 0 && (
                   <div className="pt-2 border-t" style={{ borderColor: 'rgba(0,212,255,0.1)' }}>
-                    <p className="text-xs font-semibold mb-2" style={{ color: 'rgba(0,212,255,0.6)' }}>GOOGLE APIS</p>
+                    <p className="text-xs font-semibold mb-2" style={{ color: 'rgba(0,212,255,0.6)' }}>GOOGLE TOOLS</p>
                     <div className="flex flex-wrap gap-1.5">
                       {p.apis.map((api, j) => (
                         <span
@@ -412,34 +412,6 @@ export function LandingPage() {
               </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Founder's promise */}
-      <section
-        className="px-6 py-20"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-      >
-        <div
-          className="max-w-2xl mx-auto rounded-2xl p-8"
-          style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.15)' }}
-        >
-          <p className="text-xs tracking-widest font-semibold mb-5" style={{ color: 'rgba(0,212,255,0.5)' }}>
-            FROM THE FOUNDER
-          </p>
-          <p className="text-base leading-relaxed mb-6" style={{ color: 'rgba(255,255,255,0.65)' }}>
-            "I built Prymal because I was spending two hours a day just managing inboxes and calendars —
-            and I couldn't trust any AI tool to touch them without fear of it sending something I hadn't
-            approved. So I built the approval queue first. Everything else came after.
-          </p>
-          <p className="text-base leading-relaxed mb-6" style={{ color: 'rgba(255,255,255,0.65)' }}>
-            This is an early product. The trial gives you 75 actions — not thousands. That's intentional.
-            Use them on your real inbox, your real calendar. See if it changes how you work.
-            If it doesn't, it costs you $5 to find out."
-          </p>
-          <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            — Chris, founder of Prymal AI
-          </p>
         </div>
       </section>
 
