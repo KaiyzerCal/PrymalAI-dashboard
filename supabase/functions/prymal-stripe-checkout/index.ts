@@ -16,7 +16,7 @@ const CORS = {
 const TIER_PRODUCTS: Record<string, { productId: string; priceId: string; name: string; mode: 'subscription' | 'payment' }> = {
   // $5 one-time trial — create this product in Stripe dashboard: $5 one-time, name "7-Day Trial Access"
   // Then replace STRIPE_TRIAL_PRICE_ID with the actual price ID
-  trial_access: { productId: 'prod_trial', priceId: Deno.env.get('STRIPE_TRIAL_PRICE_ID') ?? 'price_trial_placeholder', name: '7-Day Trial Access', mode: 'payment' },
+  trial_access: { productId: 'prod_Un6HDSQSFfjUkm', priceId: 'price_1TnW57Er3TvCaWKFioMibxFj', name: '7-Day Trial Access', mode: 'payment' },
   tier1: { productId: 'prod_UmbUZ2NASZSR1D', priceId: 'price_1Tn2I5Er3TvCaWKF0s9jjuwR', name: 'Tier 1 - Email Management', mode: 'subscription' },
   tier2: { productId: 'prod_UmbU1XY7wiWHZ4', priceId: 'price_1Tn2I7Er3TvCaWKF3I1THG4O', name: 'Tier 2 - Calendar & Tasks', mode: 'subscription' },
   tier3: { productId: 'prod_UmbU26BC8sMYhf', priceId: 'price_1Tn2I9Er3TvCaWKFAG5p0PlU', name: 'Tier 3 - Drive & Docs', mode: 'subscription' },
