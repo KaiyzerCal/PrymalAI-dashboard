@@ -39,12 +39,10 @@ export function PrivacyPolicyPage() {
             <li>Brand tone and knowledge base (optional)</li>
           </ul>
 
-          <p><strong>API Keys & Credentials:</strong></p>
+          <p><strong>Credentials:</strong></p>
           <ul className="list-disc list-inside mb-4">
-            <li>Your Anthropic API key (encrypted, stored securely)</li>
-            <li>Your Google Gemini API key (encrypted, stored securely)</li>
             <li>Google OAuth tokens (encrypted, stored securely)</li>
-            <li>These are <strong>your credentials</strong> that you provide to authenticate requests to your own Google Workspace</li>
+            <li>These tokens allow Prymal to act on your behalf within your Google Workspace, strictly within the scopes you authorize</li>
           </ul>
 
           <p><strong>User-Generated Content:</strong></p>
@@ -111,7 +109,7 @@ export function PrivacyPolicyPage() {
             <li>❌ We do NOT sell your personal data to third parties</li>
             <li>❌ We do NOT access or read your Google Workspace data for marketing</li>
             <li>❌ We do NOT use your data to train our own AI models</li>
-            <li>❌ We do NOT share your API keys with anyone</li>
+            <li>❌ We do NOT share your Google OAuth tokens with anyone</li>
             <li>❌ We do NOT store unencrypted credentials</li>
           </ul>
 
@@ -181,17 +179,15 @@ export function PrivacyPolicyPage() {
             <li><strong>Employees:</strong> Only essential personnel access data; all access is logged</li>
           </ul>
 
-          <h3 className="text-xl font-semibold mt-6 mb-3 text-white">5.3 API Key Security</h3>
+          <h3 className="text-xl font-semibold mt-6 mb-3 text-white">5.3 Credential Security</h3>
           <ul className="list-disc list-inside mb-4">
-            <li><strong>Your Anthropic Key:</strong> We store it encrypted. We use it ONLY to authenticate your requests to Anthropic's API</li>
-            <li><strong>Your Gemini Key:</strong> We store it encrypted. We use it ONLY to authenticate your requests to Google's API</li>
-            <li><strong>Your Google OAuth Token:</strong> We store it encrypted. We use it ONLY to authenticate your requests to your own Google Workspace</li>
+            <li><strong>AI API Keys:</strong> Platform-level API keys (Anthropic, Gemini) are stored as encrypted environment secrets and never exposed to users or client-side code</li>
+            <li><strong>Your Google OAuth Token:</strong> Stored encrypted. Used ONLY to authenticate requests to your own Google Workspace on your behalf</li>
             <li><strong>We NEVER:</strong>
               <ul className="list-disc list-inside ml-4">
-                <li>Share your keys with anyone</li>
-                <li>Log your key values</li>
-                <li>Use your keys beyond your own requests</li>
-                <li>Inspect the contents of your keys</li>
+                <li>Share your OAuth tokens with third parties</li>
+                <li>Log token values</li>
+                <li>Use your Google access beyond what you've explicitly authorized</li>
               </ul>
             </li>
           </ul>
@@ -223,13 +219,13 @@ export function PrivacyPolicyPage() {
               </tr>
               <tr>
                 <td className="border border-slate-600 p-3"><strong>Anthropic API</strong></td>
-                <td className="border border-slate-600 p-3">AI processing via Claude Haiku</td>
-                <td className="border border-slate-600 p-3">Chat messages, requests (encrypted in transit)</td>
+                <td className="border border-slate-600 p-3">Primary AI processing (Claude Haiku)</td>
+                <td className="border border-slate-600 p-3">Your chat messages and requests (encrypted in transit, never your Google data directly)</td>
               </tr>
               <tr>
                 <td className="border border-slate-600 p-3"><strong>Google Gemini API</strong></td>
                 <td className="border border-slate-600 p-3">Fallback AI processing</td>
-                <td className="border border-slate-600 p-3">Chat messages, requests (encrypted in transit)</td>
+                <td className="border border-slate-600 p-3">Your chat messages and requests (encrypted in transit)</td>
               </tr>
               <tr>
                 <td className="border border-slate-600 p-3"><strong>Supabase</strong></td>
