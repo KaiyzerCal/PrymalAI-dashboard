@@ -5,7 +5,9 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
-// Platform-level Gemini key (optional override); client key takes priority
+// Platform-level AI keys — used for all users; admin client keys override these
+const PLATFORM_ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
+const PLATFORM_GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? ''
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -3685,8 +3687,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    const geminiKey = (clientRow.gemini_api_key as string | null) ?? ''
-    const anthropicKey = (clientRow.anthropic_api_key as string | null) ?? ''
+    // Admin client key overrides platform key; everyone else uses platform key
+    const geminiKey = (clientRow.gemini_api_key as string | null) || PLATFORM_GEMINI_KEY
+    const anthropicKey = (clientRow.anthropic_api_key as string | null) || PLATFORM_ANTHROPIC_KEY
 
     // ── Haiku-first, Gemini fallback ──────────────────────────────────────────
     let finalText = ''
@@ -3701,7 +3704,7 @@ Deno.serve(async (req) => {
         console.error('Haiku failed, falling back to Gemini:', (haikuErr as Error).message)
         if (!geminiKey) {
           return new Response(
-            JSON.stringify({ reply: 'AI is temporarily unavailable. Please add a Gemini API key in Settings → Integrations as a backup.' }),
+            JSON.stringify({ reply: 'AI is temporarily unavailable. Please try again in a moment.' }),
             { headers: { 'Content-Type': 'application/json', ...CORS } }
           )
         }
@@ -3710,13 +3713,12 @@ Deno.serve(async (req) => {
         )
       }
     } else if (geminiKey) {
-      // No Anthropic key — use Gemini directly
       finalText = await runGeminiLoop(
         geminiKey, history, validatedMessage, supabase, clientRow.id, clientPlan
       )
     } else {
       return new Response(
-        JSON.stringify({ reply: 'No AI key found. Add an Anthropic API key in Settings → Integrations to activate the agent.' }),
+        JSON.stringify({ reply: 'AI engine is not configured. Please contact support.' }),
         { headers: { 'Content-Type': 'application/json', ...CORS } }
       )
     }
