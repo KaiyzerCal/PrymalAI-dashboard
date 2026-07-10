@@ -5,7 +5,9 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
-// Platform-level Gemini key (optional override); client key takes priority
+// Platform-level AI keys — used for all users; admin client keys override these
+const PLATFORM_ANTHROPIC_KEY = Deno.env.get('Anthropic_api_key') ?? ''
+const PLATFORM_GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? ''
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -86,7 +88,15 @@ RULES — never break these:
 3. If a client asks for a feature their plan doesn't include, tell them clearly which plan unlocks it and what it does.
 4. If a Google service isn't connected yet, tell the client to go to Settings → Integrations to connect it.
 5. Match the client's brand tone when drafting any content. If brand tone isn't set, ask first.
-6. Be specific — tell the client exactly what you found, what you drafted, and why.`
+6. Be specific — tell the client exactly what you found, what you drafted, and why.
+
+FORMATTING — always follow these:
+- Use **bold** for file names, labels, and key terms.
+- Use bullet lists for listing files, emails, or events.
+- When analyze_file returns content that already contains ![name](url) markdown for an image, pass it through exactly as-is — do not remove or rewrite it.
+- When get_file_info returns a thumbnailUrl for an image, display it with: ![filename](thumbnailUrl)
+- For videos, provide the webViewLink as a clickable markdown link: [Watch video](url)
+- For documents with content, show a clean summary followed by the key content.`
 
 // ── Token management ──────────────────────────────────────────────────────────
 
@@ -894,6 +904,272 @@ const TOOLS: Anthropic.Tool[] = [
         mergeExisting: { type: 'boolean', default: false, description: 'Merge with existing albums of same category?' }
       },
       required: ['organizationMethod']
+    }
+  },
+
+  // ── Tier 3: Drive — list & inspect ──
+  {
+    name: 'list_drive_files',
+    description: '[Tier 3+] List files and folders in Google Drive. Can list a specific folder or the root. Returns name, type, size, modified date, and link.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        folderId: { type: 'string', description: 'Folder ID to list. Omit for root "My Drive".' },
+        query: { type: 'string', description: 'Optional search query, e.g. "name contains \'report\'" or "mimeType=\'application/pdf\'"' },
+        maxResults: { type: 'number', default: 50 },
+        includeSubfolders: { type: 'boolean', default: false, description: 'Include files in subfolders?' }
+      }
+    }
+  },
+  {
+    name: 'get_file_info',
+    description: '[Tier 3+] Get full metadata for any file or folder in Google Drive — name, type, size, owner, sharing settings, web link.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fileId: { type: 'string', description: 'Google Drive file or folder ID' }
+      },
+      required: ['fileId']
+    }
+  },
+  {
+    name: 'analyze_file',
+    description: '[Tier 3+] Open and analyze any file in Google Drive — documents, spreadsheets, images, PDFs, code files, etc. For images: describes what is seen. For docs/sheets: returns content. For videos: returns metadata and description.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fileId: { type: 'string', description: 'Google Drive file ID' },
+        maxChars: { type: 'number', default: 5000, description: 'Max characters to return for text content' }
+      },
+      required: ['fileId']
+    }
+  },
+
+  // ── Tier 3: Docs full CRUD ──
+  {
+    name: 'read_document',
+    description: '[Tier 3+] Read the full content of a Google Doc.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        documentId: { type: 'string', description: 'Google Doc document ID' }
+      },
+      required: ['documentId']
+    }
+  },
+  {
+    name: 'delete_document',
+    description: '[Tier 3+] Delete a Google Doc (moves to trash).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        documentId: { type: 'string', description: 'Google Doc document ID' },
+        permanently: { type: 'boolean', default: false, description: 'Permanently delete instead of trash?' }
+      },
+      required: ['documentId']
+    }
+  },
+
+  // ── Tier 3: Sheets full CRUD ──
+  {
+    name: 'read_sheet',
+    description: '[Tier 3+] Read data from a Google Sheet — returns rows, columns, and cell values.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Google Sheets spreadsheet ID' },
+        sheetName: { type: 'string', description: 'Sheet tab name. Defaults to first sheet.' },
+        range: { type: 'string', description: 'Cell range e.g. "A1:D20". Omit for entire sheet.' }
+      },
+      required: ['spreadsheetId']
+    }
+  },
+  {
+    name: 'delete_sheet',
+    description: '[Tier 3+] Delete a Google Spreadsheet (moves to trash).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Google Sheets spreadsheet ID' },
+        permanently: { type: 'boolean', default: false }
+      },
+      required: ['spreadsheetId']
+    }
+  },
+
+  // ── Tier 3: Slides full CRUD ──
+  {
+    name: 'read_presentation',
+    description: '[Tier 3+] Read the content and structure of a Google Slides presentation — slide titles, text, speaker notes.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        presentationId: { type: 'string', description: 'Google Slides presentation ID' }
+      },
+      required: ['presentationId']
+    }
+  },
+  {
+    name: 'delete_presentation',
+    description: '[Tier 3+] Delete a Google Slides presentation (moves to trash).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        presentationId: { type: 'string', description: 'Google Slides presentation ID' },
+        permanently: { type: 'boolean', default: false }
+      },
+      required: ['presentationId']
+    }
+  },
+
+  // ── Tier 3: Google Forms ──
+  {
+    name: 'create_form',
+    description: '[Tier 3+] Create a Google Form with questions.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Form title' },
+        description: { type: 'string', description: 'Form description (optional)' },
+        questions: { type: 'array', description: 'Array of questions: [{title, type: "SHORT_ANSWER"|"PARAGRAPH"|"MULTIPLE_CHOICE"|"CHECKBOX", options: []}]' }
+      },
+      required: ['title']
+    }
+  },
+  {
+    name: 'read_form',
+    description: '[Tier 3+] Read a Google Form — returns title, questions, and structure.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        formId: { type: 'string', description: 'Google Form ID' }
+      },
+      required: ['formId']
+    }
+  },
+  {
+    name: 'list_form_responses',
+    description: '[Tier 3+] Get responses submitted to a Google Form.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        formId: { type: 'string', description: 'Google Form ID' },
+        maxResults: { type: 'number', default: 50 }
+      },
+      required: ['formId']
+    }
+  },
+  {
+    name: 'delete_form',
+    description: '[Tier 3+] Delete a Google Form.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        formId: { type: 'string', description: 'Google Form ID' }
+      },
+      required: ['formId']
+    }
+  },
+
+  // ── Tier 3: Google Keep ──
+  {
+    name: 'create_note',
+    description: '[Tier 3+] Create a note in Google Keep.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Note title (optional)' },
+        content: { type: 'string', description: 'Note body text' },
+        labels: { type: 'array', items: { type: 'string' }, description: 'Label names to apply (optional)' }
+      },
+      required: ['content']
+    }
+  },
+  {
+    name: 'list_notes',
+    description: '[Tier 3+] List notes in Google Keep.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        maxResults: { type: 'number', default: 20 },
+        filter: { type: 'string', description: 'Filter notes: "pinned", "archived", or a label name' }
+      }
+    }
+  },
+  {
+    name: 'update_note',
+    description: '[Tier 3+] Update the title or content of a Google Keep note.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        noteId: { type: 'string', description: 'Note ID' },
+        title: { type: 'string', description: 'New title (optional)' },
+        content: { type: 'string', description: 'New content (optional)' }
+      },
+      required: ['noteId']
+    }
+  },
+  {
+    name: 'delete_note',
+    description: '[Tier 3+] Delete a Google Keep note.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        noteId: { type: 'string', description: 'Note ID' }
+      },
+      required: ['noteId']
+    }
+  },
+
+  // ── Tier 4: Meet full CRUD ──
+  {
+    name: 'list_meetings',
+    description: '[Tier 4+] List upcoming Google Meet meetings from your calendar.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        maxResults: { type: 'number', default: 20 },
+        timeMin: { type: 'string', description: 'Start of search range (ISO 8601). Defaults to now.' },
+        timeMax: { type: 'string', description: 'End of search range (ISO 8601). Defaults to 30 days from now.' }
+      }
+    }
+  },
+  {
+    name: 'cancel_meeting',
+    description: '[Tier 4+] Cancel a Google Meet meeting and optionally notify attendees.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        eventId: { type: 'string', description: 'Calendar event ID for the meeting' },
+        notifyAttendees: { type: 'boolean', default: true, description: 'Send cancellation notification to attendees?' },
+        message: { type: 'string', description: 'Optional cancellation message' }
+      },
+      required: ['eventId']
+    }
+  },
+
+  // ── Tier 4: Contacts — read ──
+  {
+    name: 'get_contact',
+    description: '[Tier 4+] Get full details of a specific Google Contact.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        resourceName: { type: 'string', description: 'Contact resource name (e.g. "people/c12345")' }
+      },
+      required: ['resourceName']
+    }
+  },
+  {
+    name: 'search_contacts',
+    description: '[Tier 4+] Search Google Contacts by name, email, or phone.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query — name, email address, or phone number' },
+        maxResults: { type: 'number', default: 20 }
+      },
+      required: ['query']
     }
   },
 ]
@@ -2515,6 +2791,625 @@ ${method === 'smart' ? '- AI-powered intelligent grouping based on content, time
       }
     }
 
+    // ── Tier 3: Drive — list & inspect ──
+
+    case 'list_drive_files': {
+      requirePlan('tier3', 'Google Drive')
+      const token = await getFreshToken(supabase, clientId, 'drive')
+      if (!token) return { error: 'Google Drive not connected. Go to Settings → Integrations → Google Drive to connect.' }
+
+      const conditions: string[] = []
+      if (input.folderId) {
+        conditions.push(`'${input.folderId}' in parents`)
+      } else {
+        conditions.push("'root' in parents")
+      }
+      if (input.query) conditions.push(input.query as string)
+      conditions.push('trashed=false')
+
+      const params = new URLSearchParams({
+        q: conditions.join(' and '),
+        pageSize: String((input.maxResults as number) ?? 50),
+        fields: 'files(id,name,mimeType,size,modifiedTime,webViewLink,parents,owners)',
+        orderBy: 'folder,name',
+      })
+
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+
+      const files = (data.files ?? []).map((f: Record<string, unknown>) => ({
+        id: f.id,
+        name: f.name,
+        type: f.mimeType === 'application/vnd.google-apps.folder' ? 'folder'
+          : (f.mimeType as string)?.includes('document') ? 'Google Doc'
+          : (f.mimeType as string)?.includes('spreadsheet') ? 'Google Sheet'
+          : (f.mimeType as string)?.includes('presentation') ? 'Google Slides'
+          : (f.mimeType as string)?.includes('image') ? 'image'
+          : (f.mimeType as string)?.includes('video') ? 'video'
+          : (f.mimeType as string)?.includes('pdf') ? 'PDF'
+          : 'file',
+        mimeType: f.mimeType,
+        size: f.size ? `${Math.round(Number(f.size) / 1024)} KB` : null,
+        modified: f.modifiedTime,
+        link: f.webViewLink,
+      }))
+
+      const folders = files.filter((f: Record<string, unknown>) => f.type === 'folder')
+      const documents = files.filter((f: Record<string, unknown>) => f.type !== 'folder')
+
+      return {
+        total: files.length,
+        folders: folders.length,
+        files: documents.length,
+        items: files,
+      }
+    }
+
+    case 'get_file_info': {
+      requirePlan('tier3', 'Google Drive')
+      const token = await getFreshToken(supabase, clientId, 'drive')
+      if (!token) return { error: 'Google Drive not connected. Go to Settings → Integrations → Google Drive to connect.' }
+
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${input.fileId}?fields=id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,thumbnailLink,hasThumbnail,owners,sharingUser,shared,permissions,parents,description`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+
+      const thumbUrl = data.thumbnailLink
+        ? data.thumbnailLink.replace(/=s\d+$/, '=s1600')
+        : null
+
+      return {
+        id: data.id,
+        name: data.name,
+        mimeType: data.mimeType,
+        size: data.size ? `${Math.round(Number(data.size) / 1024)} KB` : 'N/A',
+        created: data.createdTime,
+        modified: data.modifiedTime,
+        link: data.webViewLink,
+        downloadLink: data.webContentLink,
+        thumbnailUrl: thumbUrl,
+        shared: data.shared,
+        owners: (data.owners ?? []).map((o: Record<string, string>) => o.emailAddress),
+        description: data.description ?? null,
+      }
+    }
+
+    case 'analyze_file': {
+      requirePlan('tier3', 'Google Drive')
+      const token = await getFreshToken(supabase, clientId, 'drive')
+      if (!token) return { error: 'Google Drive not connected. Go to Settings → Integrations → Google Drive to connect.' }
+
+      const maxChars = (input.maxChars as number) ?? 5000
+
+      // Get file metadata first (include thumbnailLink for images)
+      const metaRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${input.fileId}?fields=id,name,mimeType,size,webViewLink,thumbnailLink,hasThumbnail`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const meta = await metaRes.json()
+      if (meta.error) return { error: meta.error.message }
+
+      const mime: string = meta.mimeType ?? ''
+      let content = ''
+      let contentType = 'unknown'
+
+      if (mime === 'application/vnd.google-apps.document') {
+        contentType = 'Google Doc'
+        const exportRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${input.fileId}/export?mimeType=text/plain`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        content = (await exportRes.text()).slice(0, maxChars)
+      } else if (mime === 'application/vnd.google-apps.spreadsheet') {
+        contentType = 'Google Sheet'
+        const exportRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${input.fileId}/export?mimeType=text/csv`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        content = (await exportRes.text()).slice(0, maxChars)
+      } else if (mime === 'application/vnd.google-apps.presentation') {
+        contentType = 'Google Slides'
+        const exportRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${input.fileId}/export?mimeType=text/plain`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        content = (await exportRes.text()).slice(0, maxChars)
+      } else if (mime === 'application/pdf' || mime.startsWith('text/')) {
+        contentType = mime === 'application/pdf' ? 'PDF' : 'text file'
+        const dlRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${input.fileId}?alt=media`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        content = (await dlRes.text()).slice(0, maxChars)
+      } else if (mime.startsWith('image/')) {
+        contentType = 'image'
+        // Use a larger thumbnail size for display (sz=w1600 gives up to 1600px wide)
+        const thumbUrl = meta.thumbnailLink
+          ? meta.thumbnailLink.replace(/=s\d+$/, '=s1600')
+          : null
+        content = thumbUrl
+          ? `![${meta.name}](${thumbUrl})\n\n**${meta.name}**\nSize: ${meta.size ? Math.round(Number(meta.size) / 1024) + ' KB' : 'unknown'} · [Open in Drive](${meta.webViewLink})`
+          : `**${meta.name}**\nSize: ${meta.size ? Math.round(Number(meta.size) / 1024) + ' KB' : 'unknown'}\n[Open in Drive](${meta.webViewLink})\n\n_No preview available — open the link to view this image._`
+      } else if (mime.startsWith('video/')) {
+        contentType = 'video'
+        content = `Video file: ${meta.name}\nType: ${mime}\nSize: ${meta.size ? Math.round(Number(meta.size) / 1024 / 1024) + ' MB' : 'unknown'}\nView: ${meta.webViewLink}`
+      } else if (mime === 'application/vnd.google-apps.folder') {
+        contentType = 'folder'
+        // List folder contents
+        const listRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files?q='${input.fileId}' in parents and trashed=false&fields=files(id,name,mimeType,size)&pageSize=50`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        const listData = await listRes.json()
+        const items = listData.files ?? []
+        content = `Folder: ${meta.name}\nContains ${items.length} item(s):\n` +
+          items.map((f: Record<string, unknown>) => `- ${f.name} (${f.mimeType})`).join('\n')
+      } else {
+        contentType = 'binary file'
+        content = `File: ${meta.name}\nType: ${mime}\nSize: ${meta.size ? Math.round(Number(meta.size) / 1024) + ' KB' : 'unknown'}\nLink: ${meta.webViewLink}\n\nNote: This file type cannot be read as text.`
+      }
+
+      return {
+        fileId: input.fileId,
+        name: meta.name,
+        contentType,
+        mimeType: mime,
+        link: meta.webViewLink,
+        content,
+        truncated: content.length >= maxChars,
+      }
+    }
+
+    // ── Tier 3: Docs — read & delete ──
+
+    case 'read_document': {
+      requirePlan('tier3', 'Google Docs')
+      const token = await getFreshToken(supabase, clientId, 'drive')
+      if (!token) return { error: 'Google Drive not connected. Go to Settings → Integrations → Google Drive to connect.' }
+
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${input.documentId}/export?mimeType=text/plain`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (!res.ok) return { error: `Failed to read document (${res.status})` }
+      const text = await res.text()
+
+      // Also get the doc title
+      const metaRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${input.documentId}?fields=name,modifiedTime,webViewLink`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const meta = await metaRes.json()
+
+      return {
+        documentId: input.documentId,
+        title: meta.name,
+        modified: meta.modifiedTime,
+        link: meta.webViewLink,
+        content: text.slice(0, 8000),
+        truncated: text.length > 8000,
+        length: text.length,
+      }
+    }
+
+    case 'delete_document': {
+      requirePlan('tier3', 'Google Docs')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'delete_document',
+          summary: `Delete Google Doc`,
+          draft_content: `${input.permanently ? 'Permanently deleting' : 'Moving to trash'}: Google Doc ${input.documentId}`,
+          metadata: { documentId: input.documentId, permanently: input.permanently ?? false },
+          status: 'pending',
+        })
+        .select('id').single()
+      if (error) throw new Error(error.message)
+      return { queued: true, id: data.id, message: 'Document deletion queued. Approve in the Approvals tab.' }
+    }
+
+    // ── Tier 3: Sheets — read & delete ──
+
+    case 'read_sheet': {
+      requirePlan('tier3', 'Google Sheets')
+      const token = await getFreshToken(supabase, clientId, 'sheets')
+      if (!token) return { error: 'Google Sheets not connected. Go to Settings → Integrations → Google Sheets to connect.' }
+
+      const range = input.range
+        ? `${input.sheetName ?? 'Sheet1'}!${input.range}`
+        : (input.sheetName as string) ?? 'Sheet1'
+
+      const res = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${input.spreadsheetId}/values/${encodeURIComponent(range)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+
+      const values: unknown[][] = data.values ?? []
+      const headers = values[0] ?? []
+      const rows = values.slice(1)
+
+      return {
+        spreadsheetId: input.spreadsheetId,
+        range: data.range,
+        rowCount: rows.length,
+        columnCount: headers.length,
+        headers,
+        rows: rows.slice(0, 100),
+        truncated: rows.length > 100,
+      }
+    }
+
+    case 'delete_sheet': {
+      requirePlan('tier3', 'Google Sheets')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'delete_sheet',
+          summary: `Delete Google Sheet`,
+          draft_content: `${input.permanently ? 'Permanently deleting' : 'Moving to trash'}: Spreadsheet ${input.spreadsheetId}`,
+          metadata: { spreadsheetId: input.spreadsheetId, permanently: input.permanently ?? false },
+          status: 'pending',
+        })
+        .select('id').single()
+      if (error) throw new Error(error.message)
+      return { queued: true, id: data.id, message: 'Spreadsheet deletion queued. Approve in the Approvals tab.' }
+    }
+
+    // ── Tier 3: Slides — read & delete ──
+
+    case 'read_presentation': {
+      requirePlan('tier3', 'Google Slides')
+      const token = await getFreshToken(supabase, clientId, 'drive')
+      if (!token) return { error: 'Google Drive not connected. Go to Settings → Integrations → Google Drive to connect.' }
+
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${input.presentationId}/export?mimeType=text/plain`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const text = await res.text()
+
+      const metaRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${input.presentationId}?fields=name,modifiedTime,webViewLink`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const meta = await metaRes.json()
+
+      return {
+        presentationId: input.presentationId,
+        title: meta.name,
+        modified: meta.modifiedTime,
+        link: meta.webViewLink,
+        content: text.slice(0, 8000),
+        truncated: text.length > 8000,
+      }
+    }
+
+    case 'delete_presentation': {
+      requirePlan('tier3', 'Google Slides')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'delete_presentation',
+          summary: `Delete Google Slides presentation`,
+          draft_content: `${input.permanently ? 'Permanently deleting' : 'Moving to trash'}: Presentation ${input.presentationId}`,
+          metadata: { presentationId: input.presentationId, permanently: input.permanently ?? false },
+          status: 'pending',
+        })
+        .select('id').single()
+      if (error) throw new Error(error.message)
+      return { queued: true, id: data.id, message: 'Presentation deletion queued. Approve in the Approvals tab.' }
+    }
+
+    // ── Tier 3: Google Forms ──
+
+    case 'create_form': {
+      requirePlan('tier3', 'Google Forms')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'create_form',
+          summary: `Create Google Form: ${input.title}`,
+          draft_content: `Creating form: "${input.title}"\n${input.description ? `Description: ${input.description}\n` : ''}Questions: ${(input.questions as unknown[])?.length ?? 0}`,
+          metadata: { title: input.title, description: input.description, questions: input.questions },
+          status: 'pending',
+        })
+        .select('id').single()
+      if (error) throw new Error(error.message)
+      return { queued: true, id: data.id, message: 'Form creation queued. Approve in the Approvals tab.' }
+    }
+
+    case 'read_form': {
+      requirePlan('tier3', 'Google Forms')
+      const token = await getFreshToken(supabase, clientId, 'forms')
+      if (!token) return { error: 'Google Forms not connected. Go to Settings → Integrations → Google Forms to connect.' }
+
+      const res = await fetch(
+        `https://forms.googleapis.com/v1/forms/${input.formId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+
+      const questions = (data.items ?? []).map((item: Record<string, unknown>) => {
+        const q = item.questionItem as Record<string, unknown>
+        return {
+          id: item.itemId,
+          title: item.title,
+          type: (q?.question as Record<string, unknown>)?.textQuestion ? 'text'
+            : (q?.question as Record<string, unknown>)?.choiceQuestion ? 'choice'
+            : 'other',
+          required: (q?.question as Record<string, unknown>)?.required ?? false,
+        }
+      })
+
+      return {
+        formId: input.formId,
+        title: data.info?.title,
+        description: data.info?.description,
+        responderUri: data.responderUri,
+        questionCount: questions.length,
+        questions,
+      }
+    }
+
+    case 'list_form_responses': {
+      requirePlan('tier3', 'Google Forms')
+      const token = await getFreshToken(supabase, clientId, 'forms')
+      if (!token) return { error: 'Google Forms not connected. Go to Settings → Integrations → Google Forms to connect.' }
+
+      const res = await fetch(
+        `https://forms.googleapis.com/v1/forms/${input.formId}/responses?pageSize=${(input.maxResults as number) ?? 50}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+
+      return {
+        formId: input.formId,
+        responseCount: data.responses?.length ?? 0,
+        responses: (data.responses ?? []).slice(0, 50).map((r: Record<string, unknown>) => ({
+          responseId: r.responseId,
+          createTime: r.createTime,
+          lastSubmittedTime: r.lastSubmittedTime,
+          answers: r.answers,
+        })),
+      }
+    }
+
+    case 'delete_form': {
+      requirePlan('tier3', 'Google Forms')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'delete_form',
+          summary: `Delete Google Form`,
+          draft_content: `Deleting Google Form: ${input.formId}`,
+          metadata: { formId: input.formId },
+          status: 'pending',
+        })
+        .select('id').single()
+      if (error) throw new Error(error.message)
+      return { queued: true, id: data.id, message: 'Form deletion queued. Approve in the Approvals tab.' }
+    }
+
+    // ── Tier 3: Google Keep ──
+
+    case 'create_note': {
+      requirePlan('tier3', 'Google Keep')
+      const token = await getFreshToken(supabase, clientId, 'keep')
+      if (!token) return { error: 'Google Keep not connected. Go to Settings → Integrations → Google Keep to connect.' }
+
+      const body: Record<string, unknown> = {
+        body: { text: { text: input.content } },
+      }
+      if (input.title) body.title = input.title
+
+      const res = await fetch('https://keep.googleapis.com/v1/notes', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+
+      return { created: true, noteId: data.name, title: data.title, content: input.content }
+    }
+
+    case 'list_notes': {
+      requirePlan('tier3', 'Google Keep')
+      const token = await getFreshToken(supabase, clientId, 'keep')
+      if (!token) return { error: 'Google Keep not connected. Go to Settings → Integrations → Google Keep to connect.' }
+
+      const params = new URLSearchParams({ pageSize: String((input.maxResults as number) ?? 20) })
+      if (input.filter === 'trashed') params.set('filter', 'trashed=true')
+      else if (input.filter === 'archived') params.set('filter', 'trashed=false')
+
+      const res = await fetch(`https://keep.googleapis.com/v1/notes?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (data.error) return { error: data.error.message ?? JSON.stringify(data.error) }
+
+      const notes = (data.notes ?? []).map((n: Record<string, unknown>) => ({
+        id: n.name,
+        title: n.title ?? '(no title)',
+        snippet: ((n.body as Record<string, unknown>)?.text as Record<string, unknown>)?.text?.toString().slice(0, 100) ?? '',
+        createTime: n.createTime,
+        updateTime: n.updateTime,
+        trashed: n.trashed ?? false,
+      }))
+
+      return { count: notes.length, notes }
+    }
+
+    case 'update_note': {
+      requirePlan('tier3', 'Google Keep')
+      const token = await getFreshToken(supabase, clientId, 'keep')
+      if (!token) return { error: 'Google Keep not connected.' }
+
+      const updates: Record<string, unknown> = {}
+      const updateMask: string[] = []
+      if (input.title !== undefined) { updates.title = input.title; updateMask.push('title') }
+      if (input.content !== undefined) { updates.body = { text: { text: input.content } }; updateMask.push('body') }
+
+      const res = await fetch(
+        `https://keep.googleapis.com/v1/${input.noteId}?updateMask=${updateMask.join(',')}`,
+        {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message }
+      return { updated: true, noteId: input.noteId }
+    }
+
+    case 'delete_note': {
+      requirePlan('tier3', 'Google Keep')
+      const token = await getFreshToken(supabase, clientId, 'keep')
+      if (!token) return { error: 'Google Keep not connected.' }
+
+      const res = await fetch(`https://keep.googleapis.com/v1/${input.noteId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        return { error: err.error?.message ?? `Delete failed (${res.status})` }
+      }
+      return { deleted: true, noteId: input.noteId }
+    }
+
+    // ── Tier 4: Meet — list & cancel ──
+
+    case 'list_meetings': {
+      requirePlan('tier4', 'Google Meet')
+      const token = await getFreshToken(supabase, clientId, 'calendar')
+      if (!token) return { error: 'Google Calendar not connected.' }
+
+      const timeMin = (input.timeMin as string) ?? new Date().toISOString()
+      const timeMax = (input.timeMax as string) ?? new Date(Date.now() + 30 * 86400000).toISOString()
+      const params = new URLSearchParams({
+        timeMin, timeMax,
+        maxResults: String((input.maxResults as number) ?? 20),
+        singleEvents: 'true',
+        orderBy: 'startTime',
+        q: 'meet.google.com',
+      })
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message }
+
+      const meetings = (data.items ?? [])
+        .filter((e: Record<string, unknown>) => (e.hangoutLink || (e.conferenceData as Record<string, unknown>)))
+        .map((e: Record<string, unknown>) => ({
+          id: e.id,
+          title: e.summary ?? '(no title)',
+          start: (e.start as Record<string, string>)?.dateTime ?? (e.start as Record<string, string>)?.date,
+          end: (e.end as Record<string, string>)?.dateTime,
+          meetLink: e.hangoutLink ?? null,
+          attendees: ((e.attendees as Record<string, string>[]) ?? []).map(a => a.email),
+        }))
+
+      return { count: meetings.length, meetings }
+    }
+
+    case 'cancel_meeting': {
+      requirePlan('tier4', 'Google Meet')
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId,
+          agent: 'google',
+          action_type: 'cancel_meeting',
+          summary: `Cancel meeting`,
+          draft_content: `Cancelling meeting event ${input.eventId}${input.message ? `\nMessage: ${input.message}` : ''}`,
+          metadata: { eventId: input.eventId, notifyAttendees: input.notifyAttendees ?? true, message: input.message },
+          status: 'pending',
+        })
+        .select('id').single()
+      if (error) throw new Error(error.message)
+      return { queued: true, id: data.id, message: 'Meeting cancellation queued. Approve in the Approvals tab.' }
+    }
+
+    // ── Tier 4: Contacts — get & search ──
+
+    case 'get_contact': {
+      requirePlan('tier4', 'Google Contacts')
+      const token = await getFreshToken(supabase, clientId, 'contacts')
+      if (!token) return { error: 'Google Contacts not connected.' }
+
+      const res = await fetch(
+        `https://people.googleapis.com/v1/${input.resourceName}?personFields=names,emailAddresses,phoneNumbers,organizations,biographies`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message }
+
+      return {
+        resourceName: data.resourceName,
+        name: data.names?.[0]?.displayName,
+        emails: (data.emailAddresses ?? []).map((e: Record<string, string>) => e.value),
+        phones: (data.phoneNumbers ?? []).map((p: Record<string, string>) => p.value),
+        company: data.organizations?.[0]?.name,
+        jobTitle: data.organizations?.[0]?.title,
+        bio: data.biographies?.[0]?.value,
+      }
+    }
+
+    case 'search_contacts': {
+      requirePlan('tier4', 'Google Contacts')
+      const token = await getFreshToken(supabase, clientId, 'contacts')
+      if (!token) return { error: 'Google Contacts not connected.' }
+
+      const params = new URLSearchParams({
+        query: input.query as string,
+        pageSize: String((input.maxResults as number) ?? 20),
+        readMask: 'names,emailAddresses,phoneNumbers,organizations',
+      })
+      const res = await fetch(
+        `https://people.googleapis.com/v1/people:searchContacts?${params}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      if (data.error) return { error: data.error.message }
+
+      const contacts = (data.results ?? []).map((r: Record<string, unknown>) => {
+        const p = r.person as Record<string, unknown>
+        return {
+          resourceName: p.resourceName,
+          name: (p.names as Record<string, string>[])?.[0]?.displayName,
+          email: (p.emailAddresses as Record<string, string>[])?.[0]?.value,
+          phone: (p.phoneNumbers as Record<string, string>[])?.[0]?.value,
+          company: (p.organizations as Record<string, string>[])?.[0]?.name,
+        }
+      })
+
+      return { count: contacts.length, contacts }
+    }
+
     default:
       throw new Error(`Unknown tool: ${toolName}`)
   }
@@ -2754,8 +3649,47 @@ Deno.serve(async (req) => {
     }
 
     const clientPlan = validatePlan(clientRow.plan)
-    const geminiKey = (clientRow.gemini_api_key as string | null) ?? ''
-    const anthropicKey = (clientRow.anthropic_api_key as string | null) ?? ''
+    const isTrial = clientPlan === 'trial'
+
+    // ── Trial action cap enforcement (server-side, hard requirement) ──────────
+    let trialActionsUsed = 0
+    let trialDailyActions = 0
+    if (isTrial) {
+      const { data: capRow } = await supabase
+        .from('prymal_clients')
+        .select('trial_actions_used, trial_daily_actions, trial_daily_reset_date')
+        .eq('id', clientRow.id)
+        .single()
+
+      const today = new Date().toISOString().split('T')[0]
+      const dailyReset = capRow?.trial_daily_reset_date !== today
+      trialActionsUsed = capRow?.trial_actions_used ?? 0
+      trialDailyActions = dailyReset ? 0 : (capRow?.trial_daily_actions ?? 0)
+
+      // Hard cap: 75 total actions per trial
+      if (trialActionsUsed >= 75) {
+        return new Response(JSON.stringify({
+          reply: "You've used all **75 trial actions** — great run! 🎉\n\nUpgrade now to keep going. Your **$5 trial credit** applies directly to your first month.\n\n[Upgrade and continue →](/upgrade)",
+          trial_limit_reached: true,
+          trial_actions_used: trialActionsUsed,
+          trial_actions_remaining: 0,
+        }), { headers: { 'Content-Type': 'application/json', ...CORS } })
+      }
+
+      // Soft cap: ~20 per day (stops burning all 75 in one session)
+      if (trialDailyActions >= 20) {
+        return new Response(JSON.stringify({
+          reply: "You've hit today's **soft limit of 20 actions** — this keeps your trial spread across the week so you can see what Prymal can really do.\n\nCome back tomorrow, or **upgrade now** to remove the daily cap entirely.\n\n[Upgrade and continue →](/upgrade)",
+          trial_daily_limit: true,
+          trial_actions_used: trialActionsUsed,
+          trial_actions_remaining: 75 - trialActionsUsed,
+        }), { headers: { 'Content-Type': 'application/json', ...CORS } })
+      }
+    }
+
+    // Admin client key overrides platform key; everyone else uses platform key
+    const geminiKey = (clientRow.gemini_api_key as string | null) || PLATFORM_GEMINI_KEY
+    const anthropicKey = (clientRow.anthropic_api_key as string | null) || PLATFORM_ANTHROPIC_KEY
 
     // ── Haiku-first, Gemini fallback ──────────────────────────────────────────
     let finalText = ''
@@ -2770,7 +3704,7 @@ Deno.serve(async (req) => {
         console.error('Haiku failed, falling back to Gemini:', (haikuErr as Error).message)
         if (!geminiKey) {
           return new Response(
-            JSON.stringify({ reply: 'AI is temporarily unavailable. Please add a Gemini API key in Settings → Integrations as a backup.' }),
+            JSON.stringify({ reply: 'AI is temporarily unavailable. Please try again in a moment.' }),
             { headers: { 'Content-Type': 'application/json', ...CORS } }
           )
         }
@@ -2779,18 +3713,31 @@ Deno.serve(async (req) => {
         )
       }
     } else if (geminiKey) {
-      // No Anthropic key — use Gemini directly
       finalText = await runGeminiLoop(
         geminiKey, history, validatedMessage, supabase, clientRow.id, clientPlan
       )
     } else {
       return new Response(
-        JSON.stringify({ reply: 'No AI key found. Add an Anthropic API key in Settings → Integrations to activate the agent.' }),
+        JSON.stringify({ reply: 'AI engine is not configured. Please contact support.' }),
         { headers: { 'Content-Type': 'application/json', ...CORS } }
       )
     }
 
-    return new Response(JSON.stringify({ reply: finalText }), {
+    // ── Increment trial counter after a successful model call ─────────────────
+    let trialActionsRemaining: number | null = null
+    if (isTrial) {
+      await supabase.rpc('increment_trial_action', { p_client_id: clientRow.id })
+      trialActionsRemaining = Math.max(0, 75 - (trialActionsUsed + 1))
+    }
+
+    return new Response(JSON.stringify({
+      reply: finalText,
+      ...(isTrial ? {
+        trial_actions_used: trialActionsUsed + 1,
+        trial_actions_remaining: trialActionsRemaining,
+        trial_daily_actions: trialDailyActions + 1,
+      } : {}),
+    }), {
       headers: { 'Content-Type': 'application/json', ...CORS }
     })
 

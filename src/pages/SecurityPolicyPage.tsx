@@ -3,7 +3,7 @@ export function SecurityPolicyPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100 py-12 px-4">
       <div className="max-w-4xl mx-auto">
         <button
-          onClick={() => window.location.href = '/landing'}
+          onClick={() => window.location.href = '/'}
           className="mb-8 text-cyan-400 hover:text-cyan-300 transition-colors"
         >
           ← Back to Home

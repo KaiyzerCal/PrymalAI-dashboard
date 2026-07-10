@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useClient } from '@/hooks/useClient'
 import { useAdmin } from '@/hooks/useAdmin'
@@ -20,6 +20,40 @@ interface AgentStats {
 export function DashboardPage() {
   const { client } = useClient()
   const { isAdmin } = useAdmin()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [paymentSuccess, setPaymentSuccess] = useState(false)
+  const [trialStarted, setTrialStarted] = useState(false)
+  const [trialUsage, setTrialUsage] = useState<{ used: number; daily: number } | null>(null)
+
+  useEffect(() => {
+    if (searchParams.get('payment') === 'success') {
+      setPaymentSuccess(true)
+      setSearchParams({}, { replace: true })
+      setTimeout(() => setPaymentSuccess(false), 6000)
+    }
+    if (searchParams.get('trial') === 'started') {
+      setTrialStarted(true)
+      setSearchParams({}, { replace: true })
+      setTimeout(() => setTrialStarted(false), 8000)
+    }
+  }, [])
+
+  // Load trial usage for trial-plan users
+  useEffect(() => {
+    if (client?.plan !== 'trial') return
+    supabase
+      .from('prymal_clients')
+      .select('trial_actions_used, trial_daily_actions, trial_daily_reset_date')
+      .eq('id', client.id)
+      .single()
+      .then(({ data }) => {
+        if (!data) return
+        const today = new Date().toISOString().split('T')[0]
+        const daily = data.trial_daily_reset_date === today ? data.trial_daily_actions : 0
+        setTrialUsage({ used: data.trial_actions_used ?? 0, daily })
+      })
+  }, [client?.id, client?.plan])
 
   // Filter agents based on tier - admins see all agents
   const visibleAgents = isAdmin
@@ -142,6 +176,71 @@ export function DashboardPage() {
       />
 
       <SetupChecklist />
+
+      {/* Payment success toast */}
+      {paymentSuccess && (
+        <div
+          className="fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl text-sm font-semibold shadow-2xl"
+          style={{ background: 'rgba(8,13,22,0.98)', border: '1px solid rgba(0,212,255,0.4)', color: '#00d4ff', boxShadow: '0 0 40px rgba(0,212,255,0.2)' }}
+        >
+          <span style={{ fontSize: '18px' }}>🎉</span>
+          <div>
+            <p className="font-bold">You're all set!</p>
+            <p className="text-xs font-normal" style={{ color: 'rgba(255,255,255,0.5)' }}>Subscription active. Enjoy full access.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Trial started toast */}
+      {trialStarted && (
+        <div
+          className="fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl text-sm font-semibold shadow-2xl"
+          style={{ background: 'rgba(8,13,22,0.98)', border: '1px solid rgba(255,160,0,0.5)', color: '#ffa500', boxShadow: '0 0 40px rgba(255,160,0,0.15)' }}
+        >
+          <span style={{ fontSize: '18px' }}>🚀</span>
+          <div>
+            <p className="font-bold">Trial started!</p>
+            <p className="text-xs font-normal" style={{ color: 'rgba(255,255,255,0.5)' }}>75 actions · 7 days · $5 credited toward your first month.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Trial usage bar — visible only on trial plan */}
+      {client?.plan === 'trial' && trialUsage !== null && (
+        <div
+          className="mb-6 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap"
+          style={{ background: 'rgba(255,160,0,0.06)', border: '1px solid rgba(255,160,0,0.2)' }}
+        >
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold tracking-wide" style={{ color: '#ffa500' }}>
+                  TRIAL — {75 - trialUsage.used} actions remaining
+                </span>
+                <span className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  {trialUsage.used}/75 used · {trialUsage.daily}/20 today
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(100, (trialUsage.used / 75) * 100)}%`,
+                    background: trialUsage.used >= 60 ? '#ff6464' : trialUsage.used >= 40 ? '#ffa500' : '#00d4ff',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/upgrade')}
+            className="shrink-0 px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all"
+            style={{ background: 'rgba(0,212,255,0.15)', border: '1px solid rgba(0,212,255,0.35)', color: '#00d4ff' }}
+          >
+            Upgrade — $5 off first month →
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="relative mb-10">

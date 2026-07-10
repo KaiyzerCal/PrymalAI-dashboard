@@ -1621,11 +1621,11 @@ export function IntegrationsPage() {
             </IntegrationCard>
           </TierSection>
 
-          {/* ── AI Engine ── */}
-          <IntegrationCard
+          {/* ── AI Engine (admin override only) ── */}
+          {isAdmin && <IntegrationCard
             icon={<Zap size={18} style={{ color: '#00d4ff' }} />}
-            title="AI Engine"
-            subtitle="Anthropic API key — primary AI engine for your agents & chat"
+            title="AI Engine (Admin Override)"
+            subtitle="Anthropic API key — overrides the platform key for this account"
             loading={!anthropicKey.loaded}
             connected={!!anthropicKey.key}
           >
@@ -1651,16 +1651,15 @@ export function IntegrationsPage() {
                 </button>
               </div>
               <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                Get your key at <span style={{ color: 'rgba(0,212,255,0.5)' }}>console.anthropic.com</span> → API Keys. Used as the primary AI engine — Gemini is the fallback.
+                Admin override — leave blank to use the platform Anthropic key.
               </p>
             </div>
-          </IntegrationCard>
+          </IntegrationCard>}
 
-          {/* ── Gemini AI ── */}
-          <IntegrationCard
+          {isAdmin && <IntegrationCard
             icon={<Zap size={18} style={{ color: '#00d4ff' }} />}
-            title="Gemini AI (Fallback)"
-            subtitle="Google Gemini API key — free tier, used when Anthropic is unavailable"
+            title="Gemini AI Override (Admin)"
+            subtitle="Google Gemini API key — overrides platform key for this account"
             loading={!geminiKey.loaded}
             connected={!!geminiKey.key}
           >
@@ -1686,10 +1685,10 @@ export function IntegrationsPage() {
                 </button>
               </div>
               <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                Get a free key at <span style={{ color: 'rgba(0,212,255,0.5)' }}>aistudio.google.com</span> → Get API key. No billing required.
+                Admin override — leave blank to use the platform Gemini key.
               </p>
             </div>
-          </IntegrationCard>
+          </IntegrationCard>}
 
         </div>
       )}

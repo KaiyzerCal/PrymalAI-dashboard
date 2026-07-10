@@ -21,19 +21,13 @@ export function SetupChecklist() {
 
     async function load() {
       const [clientRes, tokensRes] = await Promise.all([
-        supabase.from('prymal_clients').select('anthropic_api_key, brand_tone, gbp_account_id').single(),
+        supabase.from('prymal_clients').select('brand_tone, gbp_account_id').single(),
         supabase.from('prymal_oauth_tokens').select('platform'),
       ])
       const client = clientRes.data
       const connected = new Set((tokensRes.data ?? []).map((r: { platform: string }) => r.platform))
 
       setItems([
-        {
-          id: 'api_key',
-          label: 'Add Anthropic API key',
-          description: 'Required for all AI agents to work',
-          done: !!client?.anthropic_api_key,
-        },
         {
           id: 'gmail',
           label: 'Connect Gmail',

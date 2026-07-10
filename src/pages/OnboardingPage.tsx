@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
-import { Check, ChevronDown } from 'lucide-react'
+import { supabase, FUNCTION_BASE } from '@/lib/supabase'
+import { Check, ChevronDown, Gift } from 'lucide-react'
 
 const PLANS = [
   {
@@ -170,18 +170,56 @@ export function OnboardingPage() {
     }
     setSaving(true)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { navigate('/login'); return }
+
+      // Mark onboarding complete and store which paid plan they intend to upgrade to
+      await supabase.from('prymal_clients').update({
+        onboarding_complete: true,
+        intended_plan: planId,
+      }).eq('user_id', session.user.id)
+
+      // Charge $5 trial fee — plan selection remembered for when they upgrade
+      const res = await fetch(`${FUNCTION_BASE}/prymal-stripe-checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ plan: 'trial_access' }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        // Fallback: just go to dashboard if checkout fails
+        navigate('/dashboard')
+      }
+    } catch (err) {
+      console.error('Error starting checkout:', err)
+      navigate('/dashboard')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function startFreeTrial() {
+    if (!policiesAcknowledged) {
+      alert('Please acknowledge our policies before continuing')
+      return
+    }
+    setSaving(true)
+    try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        // Update plan and mark onboarding complete
         await supabase.from('prymal_clients').update({
-          plan: planId,
-          onboarding_complete: true
+          plan: 'trial',
+          onboarding_complete: true,
         }).eq('user_id', user.id)
       }
-      navigate('/')
-    } catch (err) {
-      console.error('Error choosing plan:', err)
-      navigate('/')
+      navigate('/dashboard')
+    } catch {
+      navigate('/dashboard')
     } finally {
       setSaving(false)
     }
@@ -300,8 +338,24 @@ export function OnboardingPage() {
         {step === 3 && (
           <div>
             <div className="text-center mb-6">
-              <h2 className="text-white font-bold tracking-wide">Choose Your Plan</h2>
-              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Start free — upgrade anytime. No contracts.</p>
+              <h2 className="text-white font-bold tracking-wide">Start Your 7-Day Trial for $5</h2>
+              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Pick the plan you want after the trial. $5 credited toward month 1.</p>
+            </div>
+
+            {/* Trial callout */}
+            <div
+              className="rounded-xl mb-6 p-4"
+              style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)' }}
+            >
+              <div className="flex items-center gap-2 mb-2 text-sm font-bold" style={{ color: '#00d4ff' }}>
+                <Gift size={15} />
+                7-day trial for $5 — credited toward your first month
+              </div>
+              <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                75 AI actions included · ~20/day soft cap · Haiku model · No surprise charges —
+                if you don't upgrade after the trial, nothing more is billed.
+                Your $5 applies as credit when you choose a paid plan.
+              </p>
             </div>
 
             {/* Policy Acknowledgment */}
@@ -365,19 +419,29 @@ export function OnboardingPage() {
                     onClick={() => choosePlan(plan.id)}
                     disabled={saving}
                     className="w-full py-2 text-xs font-bold tracking-widest rounded-lg transition-all disabled:opacity-40"
-                    style={plan.id === 'trial'
-                      ? { background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80' }
-                      : plan.highlight
+                    style={plan.highlight
                       ? { background: 'linear-gradient(135deg, rgba(0,212,255,0.25), rgba(0,212,255,0.1))', border: '1px solid rgba(0,212,255,0.5)', color: '#00d4ff' }
                       : { background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }
                     }
                   >
-                    {saving ? '…' : plan.cta}
+                    {saving ? '…' : 'Start for $5 — 7-Day Trial'}
                   </button>
                 </div>
               ))}
             </div>
-            <button onClick={() => setStep(2)} className="mt-4 text-xs tracking-wide text-zinc-600 hover:text-zinc-400 transition-colors mx-auto block">← Back</button>
+            <div className="mt-4 flex items-center justify-between">
+              <button onClick={() => setStep(2)} className="text-xs tracking-wide text-zinc-600 hover:text-zinc-400 transition-colors">← Back</button>
+              <button
+                onClick={startFreeTrial}
+                disabled={saving}
+                className="text-xs tracking-wide transition-colors disabled:opacity-40"
+                style={{ color: 'rgba(255,255,255,0.25)' }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.5)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.25)' }}
+              >
+                Skip for now — explore free →
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -23,6 +23,25 @@ Deno.serve(async (req) => {
 
   try {
     switch (event.type) {
+      // ── $5 trial one-time payment completed ──
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session
+        if (session.mode === 'payment' && session.metadata?.plan === 'trial_access') {
+          const customerId = session.customer as string
+          const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          await supabase.from('prymal_clients').update({
+            plan: 'trial',
+            status: 'active',
+            trial_ends_at: trialEndsAt,
+            trial_actions_used: 0,
+            trial_daily_actions: 0,
+            trial_daily_reset_date: null,
+          }).eq('stripe_customer_id', customerId)
+          console.log('Trial started for customer:', customerId, 'ends:', trialEndsAt)
+        }
+        break
+      }
+
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription

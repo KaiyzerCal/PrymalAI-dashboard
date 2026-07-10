@@ -62,7 +62,7 @@ export function Sidebar() {
 
         {/* Overview */}
         <NavLink
-          to="/"
+          to="/dashboard"
           end
           className={({ isActive }) =>
             `flex items-center gap-3 px-3 py-2 rounded text-xs font-medium tracking-wide transition-all ${
@@ -95,7 +95,7 @@ export function Sidebar() {
           return (
             <NavLink
               key={agent.id}
-              to={`/agents/${agent.id}`}
+              to={`/dashboard/agents/${agent.id}`}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded text-xs font-medium tracking-wide transition-all ${
                   isActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-200'
@@ -132,8 +132,8 @@ export function Sidebar() {
         </p>
 
         {[
-          { to: '/approvals', icon: CheckSquare, label: 'ALL APPROVALS' },
-          { to: '/settings', icon: Settings, label: 'SETTINGS' },
+          { to: '/dashboard/approvals', icon: CheckSquare, label: 'ALL APPROVALS' },
+          { to: '/dashboard/settings', icon: Settings, label: 'SETTINGS' },
         ].map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
@@ -164,7 +164,7 @@ export function Sidebar() {
               ADMIN
             </p>
             <NavLink
-              to="/admin"
+              to="/dashboard/admin"
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded text-xs font-medium tracking-wide transition-all ${
                   isActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-200'

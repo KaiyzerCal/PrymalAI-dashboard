@@ -1175,7 +1175,7 @@ export function AgentPage() {
     setPendingItems(prev => prev.filter(i => i.id !== itemId))
   }
 
-  if (!agent) return <Navigate to="/" replace />
+  if (!agent) return <Navigate to="/dashboard" replace />
 
   const Icon = agent.icon
 

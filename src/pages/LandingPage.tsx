@@ -1,27 +1,45 @@
 import { useNavigate } from 'react-router-dom'
-import { Mail, Calendar, HardDrive, Shield, Zap, ChevronRight, Star } from 'lucide-react'
+import { Mail, Calendar, HardDrive, Shield, Lock, Eye, Trash2, Gift, ChevronRight } from 'lucide-react'
 import { getAvailableTiers } from '@/lib/tierConfig'
 
 const FEATURES = [
   {
     icon: <Mail size={20} style={{ color: '#00d4ff' }} />,
     title: 'Inbox, handled.',
-    description: 'Ask "what emails need my attention today?" and get a prioritized summary. Reply to anything in seconds.',
+    description: 'Ask "what needs my attention today?" and get a prioritized briefing — not a list of 47 unread. Prymal reads for context, surfaces what matters, drafts replies. You approve before anything sends.',
   },
   {
     icon: <Calendar size={20} style={{ color: '#00d4ff' }} />,
     title: 'Calendar, spoken.',
-    description: '"What\'s on my schedule this week?" or "block Thursday afternoon for deep work" — just say it.',
+    description: '"Block Thursday afternoon for deep work" or "find a time for a 45-minute call with Jordan this week." It checks your actual availability, proposes slots, books only when you confirm.',
   },
   {
     icon: <HardDrive size={20} style={{ color: '#00d4ff' }} />,
     title: 'Drive, searchable.',
-    description: 'Find any file, read any doc. "Summarize last quarter\'s report" and it\'s done in seconds.',
+    description: '"Summarize last quarter\'s report" or "find the NDA we signed with Acme." Prymal reads your Drive and returns the answer — not a list of files to click through.',
   },
   {
     icon: <Shield size={20} style={{ color: '#00d4ff' }} />,
-    title: 'You approve everything.',
-    description: 'Prymal drafts, you decide. Nothing sends without your sign-off. Full control, zero risk.',
+    title: 'You hold the wheel.',
+    description: 'Every email draft, every calendar change, every file move goes into an approval queue first. Prymal proposes. You decide. Nothing touches your accounts without your explicit sign-off.',
+  },
+]
+
+const TRUST_POINTS = [
+  {
+    icon: <Lock size={18} style={{ color: '#00d4ff' }} />,
+    title: 'OAuth only. No passwords stored.',
+    description: 'Prymal connects to Google via official OAuth 2.0. We never see your password. Revoke access from your Google account settings at any time.',
+  },
+  {
+    icon: <Eye size={18} style={{ color: '#00d4ff' }} />,
+    title: 'Approval queue on every action.',
+    description: 'Nothing sends, moves, or changes without appearing in your approval panel first. You review each proposed action before it executes.',
+  },
+  {
+    icon: <Trash2 size={18} style={{ color: '#00d4ff' }} />,
+    title: 'Delete everything, anytime.',
+    description: 'Request full account deletion and every piece of your data — conversation history, stored context, OAuth tokens — is purged.',
   },
 ]
 
@@ -33,29 +51,12 @@ const PRICING = getAvailableTiers()
     price: `$${tier.price}`,
     period: '/mo',
     description: tier.description,
-    features: tier.features.slice(0, 5), // Show first 5 features
+    features: tier.features.slice(0, 5),
     apis: tier.apis,
-    cta: 'Start free trial',
     highlight: tier.level === 'tier3',
   }))
 
-const TESTIMONIALS = [
-  {
-    text: "I used to spend 2 hours a day on email. Now I open Prymal, ask what needs my attention, and I'm done in 20 minutes.",
-    name: 'Sarah M.',
-    role: 'Freelance Designer',
-  },
-  {
-    text: "It actually reads my emails and tells me what matters. Not just search — it understands context.",
-    name: 'James T.',
-    role: 'Small Business Owner',
-  },
-  {
-    text: "The approval flow is brilliant. My AI does the work, I just hit approve. Nothing goes out without me seeing it first.",
-    name: 'Priya K.',
-    role: 'Marketing Consultant',
-  },
-]
+const CTA_TEXT = 'Start your 7-day trial — $5 · Credited to your first month. Cancel anytime.'
 
 export function LandingPage() {
   const navigate = useNavigate()
@@ -65,6 +66,22 @@ export function LandingPage() {
       className="min-h-screen"
       style={{ background: '#060b14', color: 'white', fontFamily: 'system-ui, sans-serif' }}
     >
+      {/* Founding-100 scarcity banner */}
+      <div
+        className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-center"
+        style={{ background: 'rgba(255,160,0,0.08)', borderBottom: '1px solid rgba(255,160,0,0.2)', color: 'rgba(255,160,0,0.9)', letterSpacing: '0.02em' }}
+      >
+        <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#ffa500', boxShadow: '0 0 6px #ffa500', flexShrink: 0 }} />
+        Founding 100 members — locking in the lowest price this product will ever be at.
+        <button
+          onClick={() => navigate('/login')}
+          className="ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold"
+          style={{ background: 'rgba(255,160,0,0.15)', border: '1px solid rgba(255,160,0,0.35)', color: '#ffa500' }}
+        >
+          Claim your spot →
+        </button>
+      </div>
+
       {/* Nav */}
       <nav
         className="flex items-center justify-between px-6 py-4 sticky top-0 z-50"
@@ -92,8 +109,10 @@ export function LandingPage() {
               border: '1px solid rgba(0,212,255,0.35)',
               color: '#00d4ff',
             }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 0 20px rgba(0,212,255,0.2)' }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none' }}
           >
-            Get started free
+            Start for $5
           </button>
         </div>
       </nav>
@@ -109,28 +128,30 @@ export function LandingPage() {
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-8"
           style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }}
         >
-          <Zap size={11} />
-          Your Google inbox, calendar & Drive — now with AI
+          Your inbox, calendar, and Drive — run by an AI you control
         </div>
 
         <h1
           className="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-none"
-          style={{ maxWidth: '800px' }}
+          style={{ maxWidth: '860px' }}
         >
-          Stop managing Google.
+          An AI runs your inbox,
           <br />
-          <span style={{ color: '#00d4ff' }}>Start talking to it.</span>
+          calendar, and Drive.
+          <br />
+          <span style={{ color: '#00d4ff' }}>You approve every move.</span>
         </h1>
 
         <p
           className="text-lg md:text-xl mb-10 leading-relaxed"
           style={{ color: 'rgba(255,255,255,0.45)', maxWidth: '560px' }}
         >
-          Prymal is an AI agent that reads your Gmail, knows your calendar, and searches your Drive —
-          then acts on your behalf with your approval.
+          Prymal handles the operational grind across your Google tools — reading, drafting, scheduling,
+          searching — and puts every proposed action in front of you before it executes.
+          You get the leverage of an AI assistant with zero loss of control.
         </p>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3 mb-12">
+        <div className="flex flex-col sm:flex-row items-center gap-3 mb-6">
           <button
             onClick={() => navigate('/login')}
             className="flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold tracking-wide transition-all"
@@ -143,13 +164,13 @@ export function LandingPage() {
             onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 0 60px rgba(0,212,255,0.25)' }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 0 40px rgba(0,212,255,0.15)' }}
           >
-            Try it free — no credit card
+            Start your 7-day trial for $5
             <ChevronRight size={16} />
           </button>
-          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
-            7-day free trial · Cancel anytime
-          </p>
         </div>
+        <p className="text-xs mb-14" style={{ color: 'rgba(255,255,255,0.25)' }}>
+          $5 credited toward your first month if you upgrade. Cancel anytime.
+        </p>
 
         {/* Chat demo mockup */}
         <div
@@ -161,21 +182,19 @@ export function LandingPage() {
             boxShadow: '0 0 80px rgba(0,212,255,0.1), 0 40px 80px rgba(0,0,0,0.6)',
           }}
         >
-          {/* Chat header */}
           <div
             className="flex items-center gap-2.5 px-4 py-3"
             style={{ borderBottom: '1px solid rgba(0,212,255,0.08)' }}
           >
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#00d4ff', boxShadow: '0 0 6px #00d4ff' }} />
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#00d4ff', boxShadow: '0 0 6px #00d4ff', animation: 'pulse-dot 2s infinite' }} />
             <span className="text-xs font-bold tracking-widest" style={{ color: '#00d4ff' }}>PRYMAL AI</span>
           </div>
-          {/* Messages */}
           <div className="px-4 py-4 flex flex-col gap-3 text-left">
             {[
               { role: 'user', text: 'What emails need my attention today?' },
               { role: 'ai', text: '3 emails need action:\n\n1. Invoice from Acme Corp ($2,400) — due in 2 days, no reply yet\n2. Client proposal request from Jordan Lee — asks for quote by Friday\n3. Meeting reschedule from your 3pm call — they want Thursday instead\n\nWant me to draft replies to any of these?' },
               { role: 'user', text: 'Yes, reply to Jordan with my standard proposal template' },
-              { role: 'ai', text: 'Done — draft queued for your approval. I used your brand tone and attached your standard rate sheet. Review it in the approval panel when you\'re ready.' },
+              { role: 'ai', text: 'Done — draft queued for your approval. I used your brand tone and attached your standard rate sheet. Review it in the approval panel when you\'re ready.\n\n⚡ Nothing has been sent yet. You approve before it goes.' },
             ].map((m, i) => (
               <div
                 key={i}
@@ -204,6 +223,13 @@ export function LandingPage() {
               </div>
             ))}
           </div>
+          {/* Demo caption */}
+          <div
+            className="px-4 py-3 text-xs text-center"
+            style={{ borderTop: '1px solid rgba(0,212,255,0.08)', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}
+          >
+            This is a real Prymal session. It read the inbox, prioritized what mattered, and queued a reply — waiting for approval. It never acts alone.
+          </div>
         </div>
       </section>
 
@@ -213,9 +239,13 @@ export function LandingPage() {
           <p className="text-xs tracking-widest font-semibold text-center mb-3" style={{ color: 'rgba(0,212,255,0.5)' }}>
             WHAT PRYMAL DOES
           </p>
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-16 tracking-tight">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 tracking-tight">
             One AI. All your Google tools.
           </h2>
+          <p className="text-base text-center mb-16" style={{ color: 'rgba(255,255,255,0.35)', maxWidth: '480px', margin: '0 auto 4rem' }}>
+            Prymal connects to Gmail, Calendar, Drive, Tasks, Contacts, and Meet through Google's official APIs.
+            You can expand or restrict access at any time.
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {FEATURES.map((f, i) => (
               <div
@@ -240,32 +270,36 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Social proof */}
+      {/* Trust section */}
       <section className="px-6 py-20" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
         <div className="max-w-4xl mx-auto">
-          <p className="text-xs tracking-widest font-semibold text-center mb-12" style={{ color: 'rgba(0,212,255,0.5)' }}>
-            EARLY USERS
+          <p className="text-xs tracking-widest font-semibold text-center mb-3" style={{ color: 'rgba(0,212,255,0.5)' }}>
+            SECURITY & CONTROL
+          </p>
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 tracking-tight">
+            Built on Trust.
+          </h2>
+          <p className="text-base text-center mb-14" style={{ color: 'rgba(255,255,255,0.35)', maxWidth: '500px', margin: '0 auto 3.5rem' }}>
+            You're handing an AI access to your most sensitive tools. Here's exactly how we've structured that.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {TESTIMONIALS.map((t, i) => (
+            {TRUST_POINTS.map((t, i) => (
               <div
                 key={i}
-                className="rounded-2xl p-6 flex flex-col gap-4"
+                className="rounded-2xl p-6"
                 style={{
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid rgba(255,255,255,0.06)',
+                  background: 'rgba(0,212,255,0.03)',
+                  border: '1px solid rgba(0,212,255,0.12)',
                 }}
               >
-                <div className="flex gap-0.5">
-                  {[...Array(5)].map((_, j) => (
-                    <Star key={j} size={12} fill="#00d4ff" style={{ color: '#00d4ff' }} />
-                  ))}
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+                  style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.15)' }}
+                >
+                  {t.icon}
                 </div>
-                <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>"{t.text}"</p>
-                <div>
-                  <p className="text-xs font-semibold text-white">{t.name}</p>
-                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>{t.role}</p>
-                </div>
+                <h3 className="text-sm font-bold mb-2">{t.title}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.38)' }}>{t.description}</p>
               </div>
             ))}
           </div>
@@ -281,9 +315,20 @@ export function LandingPage() {
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 tracking-tight">
             Simple, honest pricing.
           </h2>
-          <p className="text-center text-sm mb-16" style={{ color: 'rgba(255,255,255,0.35)' }}>
-            7-day free trial on all plans. No credit card required to start.
+          <p className="text-sm text-center mb-4" style={{ color: 'rgba(255,255,255,0.3)', maxWidth: '460px', margin: '0 auto 1rem' }}>
+            The $5 trial gives you 7 days and 75 AI actions — enough to run your inbox for a week and decide if this is worth it.
+            Each action is one AI task: read an email, draft a reply, check a calendar event.
+            If you upgrade, the $5 comes off your first month.
           </p>
+          <div className="flex justify-center mb-14">
+            <div
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold"
+              style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.25)', color: '#00d4ff' }}
+            >
+              <Gift size={14} />
+              All plans start with the same $5 / 7-day trial
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {PRICING.map((p, i) => (
               <div
@@ -315,7 +360,6 @@ export function LandingPage() {
                   <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>{p.description}</p>
                 </div>
 
-                {/* Features */}
                 <ul className="flex flex-col gap-2.5">
                   {p.features.map((f, j) => (
                     <li key={j} className="flex items-start gap-2 text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>
@@ -325,10 +369,9 @@ export function LandingPage() {
                   ))}
                 </ul>
 
-                {/* APIs */}
                 {p.apis && p.apis.length > 0 && (
                   <div className="pt-2 border-t" style={{ borderColor: 'rgba(0,212,255,0.1)' }}>
-                    <p className="text-xs font-semibold mb-2" style={{ color: 'rgba(0,212,255,0.6)' }}>GOOGLE APIS</p>
+                    <p className="text-xs font-semibold mb-2" style={{ color: 'rgba(0,212,255,0.6)' }}>GOOGLE TOOLS</p>
                     <div className="flex flex-wrap gap-1.5">
                       {p.apis.map((api, j) => (
                         <span
@@ -346,6 +389,7 @@ export function LandingPage() {
                     </div>
                   </div>
                 )}
+
                 <button
                   onClick={() => navigate('/login')}
                   className="mt-auto w-full py-3 rounded-xl text-sm font-bold tracking-wide transition-all"
@@ -363,7 +407,7 @@ export function LandingPage() {
                         }
                   }
                 >
-                  {p.cta}
+                  Start for $5
                 </button>
               </div>
             ))}
@@ -373,34 +417,40 @@ export function LandingPage() {
 
       {/* Final CTA */}
       <section
-        className="px-6 py-24 text-center"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
+        className="relative px-6 py-24 text-center overflow-hidden"
       >
         <div
-          className="absolute inset-x-0 pointer-events-none"
+          className="absolute inset-x-0 bottom-0 pointer-events-none"
           style={{ height: '400px', background: 'radial-gradient(ellipse 60% 60% at 50% 100%, rgba(0,212,255,0.07) 0%, transparent 70%)' }}
         />
-        <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-5">
-          Your inbox won't manage itself.
-          <br />
-          <span style={{ color: '#00d4ff' }}>Prymal will.</span>
-        </h2>
-        <p className="text-base mb-10" style={{ color: 'rgba(255,255,255,0.35)', maxWidth: '420px', margin: '0 auto 2.5rem' }}>
-          Join the waitlist and get early access at founding member pricing.
-        </p>
-        <button
-          onClick={() => navigate('/login')}
-          className="inline-flex items-center gap-2 px-10 py-4 rounded-xl text-sm font-bold tracking-wide transition-all"
-          style={{
-            background: 'linear-gradient(135deg, rgba(0,212,255,0.3) 0%, rgba(0,212,255,0.12) 100%)',
-            border: '1px solid rgba(0,212,255,0.4)',
-            color: '#00d4ff',
-            boxShadow: '0 0 60px rgba(0,212,255,0.15)',
-          }}
-        >
-          Get early access — free
-          <ChevronRight size={16} />
-        </button>
+        <div className="relative z-10">
+          <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-5">
+            Your inbox won't manage itself.
+            <br />
+            <span style={{ color: '#00d4ff' }}>Prymal will.</span>
+          </h2>
+          <p className="text-base mb-10" style={{ color: 'rgba(255,255,255,0.35)', maxWidth: '460px', margin: '0 auto 2.5rem' }}>
+            Start today for $5. Seven days, seventy-five actions, your first month credited if you stay.
+          </p>
+          <button
+            onClick={() => navigate('/login')}
+            className="inline-flex items-center gap-2 px-10 py-4 rounded-xl text-sm font-bold tracking-wide transition-all"
+            style={{
+              background: 'linear-gradient(135deg, rgba(0,212,255,0.3) 0%, rgba(0,212,255,0.12) 100%)',
+              border: '1px solid rgba(0,212,255,0.4)',
+              color: '#00d4ff',
+              boxShadow: '0 0 60px rgba(0,212,255,0.15)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 0 80px rgba(0,212,255,0.25)' }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 0 60px rgba(0,212,255,0.15)' }}
+          >
+            {CTA_TEXT}
+            <ChevronRight size={16} />
+          </button>
+          <p className="text-xs mt-5" style={{ color: 'rgba(255,255,255,0.18)' }}>
+            No commitment. Cancel from settings in 30 seconds.
+          </p>
+        </div>
       </section>
 
       {/* Footer */}
@@ -416,30 +466,18 @@ export function LandingPage() {
           © 2026 PrymalAI. All rights reserved.
         </p>
         <div className="flex gap-4">
-          <a href="/privacy" className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.25)' }}
-            onMouseEnter={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.6)' }}
-            onMouseLeave={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.25)' }}
-          >
-            Privacy
-          </a>
-          <a href="/terms" className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.25)' }}
-            onMouseEnter={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.6)' }}
-            onMouseLeave={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.25)' }}
-          >
-            Terms
-          </a>
-          <a href="/security" className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.25)' }}
-            onMouseEnter={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.6)' }}
-            onMouseLeave={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.25)' }}
-          >
-            Security
-          </a>
-          <a href="/contact" className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.25)' }}
-            onMouseEnter={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.6)' }}
-            onMouseLeave={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.25)' }}
-          >
-            Contact
-          </a>
+          {['Privacy', 'Terms', 'Security', 'Contact'].map(link => (
+            <a
+              key={link}
+              href={`/${link.toLowerCase()}`}
+              className="text-xs transition-colors"
+              style={{ color: 'rgba(255,255,255,0.25)' }}
+              onMouseEnter={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.6)' }}
+              onMouseLeave={e => { (e.target as HTMLElement).style.color = 'rgba(255,255,255,0.25)' }}
+            >
+              {link}
+            </a>
+          ))}
         </div>
       </footer>
 
