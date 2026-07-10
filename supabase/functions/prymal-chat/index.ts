@@ -6,7 +6,7 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
 // Platform-level AI keys — used for all users; admin client keys override these
-const PLATFORM_ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
+const PLATFORM_ANTHROPIC_KEY = Deno.env.get('Anthropic_api_key') ?? ''
 const PLATFORM_GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? ''
 
 const CORS = {
