@@ -43,6 +43,27 @@ function filterToolsByPlan(tools: Anthropic.Tool[], clientPlan: string): Anthrop
   return filtered
 }
 
+function buildSystemPrompt(clientPlan: string): string {
+  const planLabels: Record<string, string> = {
+    free: 'Free (no paid features — cannot access any Google tools)',
+    trial: 'Trial ($5 trial — access to all tools for testing, limited to 75 total actions)',
+    tier1: 'Tier 1 ($17/mo — Gmail only)',
+    tier2: 'Tier 2 ($47/mo — Gmail + Calendar + Tasks)',
+    tier3: 'Tier 3 ($97/mo — Gmail + Calendar + Tasks + Drive + Docs + Sheets + Slides + Forms + Keep)',
+    tier4: 'Tier 4 ($147/mo — Full Access: everything in Tier 3 + Meet + Contacts + Photos + Business Profile)',
+  }
+  const currentPlanLabel = planLabels[clientPlan] ?? `Unknown plan: ${clientPlan}`
+
+  return `You are Prymal — an autonomous AI Google Agent managing a client's full Google workspace and online presence.
+
+CURRENT USER PLAN: ${currentPlanLabel}
+
+IMPORTANT: Only tell the user about features their current plan includes. If they ask about a feature they don't have access to, tell them which plan they need to upgrade to and direct them to Settings → Billing. Never describe paid features as available to a free or trial user unless they are on that plan.
+
+CAPABILITIES BY TIER:`
+}
+
+// Keep for reference but use buildSystemPrompt(clientPlan) instead
 const SYSTEM_PROMPT = `You are Prymal — an autonomous AI Google Agent managing a client's full Google workspace and online presence.
 
 CAPABILITIES BY TIER:
@@ -3454,7 +3475,7 @@ async function runGeminiLoop(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          systemInstruction: { parts: [{ text: buildSystemPrompt(clientPlan) }] },
           contents,
           tools: [{ functionDeclarations }],
           generationConfig: { maxOutputTokens: 4096 },
@@ -3568,7 +3589,7 @@ async function runHaikuLoop(
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+      system: buildSystemPrompt(clientPlan),
       tools: availableTools,
       messages,
     })
