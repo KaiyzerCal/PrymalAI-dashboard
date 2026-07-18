@@ -8,6 +8,7 @@ import { LoginPage } from '@/pages/LoginPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { AgentPage } from '@/pages/AgentPage'
 import { ApprovalQueuePage } from '@/pages/ApprovalQueuePage'
+import { RelationshipsPage } from '@/pages/RelationshipsPage'
 import { IntegrationsPage } from '@/pages/IntegrationsPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { GoogleCallbackPage } from '@/pages/GoogleCallbackPage'
@@ -111,6 +112,7 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="agents/:id" element={<AgentPage />} />
           <Route path="approvals" element={<ApprovalQueuePage />} />
+          <Route path="relationships" element={<RelationshipsPage />} />
           <Route path="settings" element={<IntegrationsPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="admin/clients/:id" element={<AdminClientPage />} />

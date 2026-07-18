@@ -7,6 +7,7 @@ import { AGENTS, AGENT_TO_TIER } from '@/lib/agents'
 import { planAtLeast } from '@/lib/tierConfig'
 import { ChevronRight, Clock, Activity } from 'lucide-react'
 import { SetupChecklist } from '@/components/SetupChecklist'
+import { DailyBriefCard } from '@/components/DailyBriefCard'
 
 interface AgentStats {
   google: { reviews: number; pending: number }
@@ -176,6 +177,8 @@ export function DashboardPage() {
       />
 
       <SetupChecklist />
+
+      <DailyBriefCard />
 
       {/* Payment success toast */}
       {paymentSuccess && (
