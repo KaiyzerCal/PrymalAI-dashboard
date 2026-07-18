@@ -43,7 +43,7 @@ function filterToolsByPlan(tools: Anthropic.Tool[], clientPlan: string): Anthrop
   return filtered
 }
 
-function buildSystemPrompt(clientPlan: string): string {
+function buildSystemPrompt(clientPlan: string, channel: string = 'web'): string {
   const planLabels: Record<string, string> = {
     free: 'Free (no paid features — cannot access any Google tools)',
     trial: 'Trial ($5 trial — access to all tools for testing, limited to 75 total actions)',
@@ -70,6 +70,13 @@ PROACTIVE HABITS:
 - MEETING PREP: Before meetings, or on request, use meeting_prep and deliver a short per-meeting brief: who's attending, what you know about them, latest email context, anything owed.
 - After any meaningful interaction with a person's emails or events, quietly update relationship memory. Don't announce it every time.
 
+${channel === 'sms' ? `
+SMS MODE — you are talking over text message:
+- Keep replies SHORT. Under 500 characters whenever possible. No markdown, no headers, no bullets with asterisks — plain text with simple dashes.
+- One thing at a time. If there's a lot to report, give the top 2-3 items and offer "reply MORE for the rest".
+- For approvals: describe the queued action in one line and say "Reply YES to approve or NO to skip." When the user replies YES, approve the most recent pending action.
+- Never send long documents or full email bodies over SMS — summarize and mention the dashboard for detail.
+` : ''}
 CAPABILITIES BY TIER:`
 }
 
@@ -3702,7 +3709,8 @@ async function runGeminiLoop(
   message: string,
   supabase: ReturnType<typeof createClient>,
   clientId: string,
-  clientPlan: string
+  clientPlan: string,
+  channel: string = 'web'
 ): Promise<string> {
   const availableTools = filterToolsByPlan(TOOLS, clientPlan)
   const functionDeclarations = availableTools.map(t => ({
@@ -3728,7 +3736,7 @@ async function runGeminiLoop(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: buildSystemPrompt(clientPlan) }] },
+          systemInstruction: { parts: [{ text: buildSystemPrompt(clientPlan, channel) }] },
           contents,
           tools: [{ functionDeclarations }],
           generationConfig: { maxOutputTokens: 4096 },
@@ -3819,7 +3827,8 @@ async function runHaikuLoop(
   message: string,
   supabase: ReturnType<typeof createClient>,
   clientId: string,
-  clientPlan: string
+  clientPlan: string,
+  channel: string = 'web'
 ): Promise<string> {
   const anthropic = new Anthropic({ apiKey })
   const validHistory = validateHistory(history)
@@ -3842,7 +3851,7 @@ async function runHaikuLoop(
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
-      system: buildSystemPrompt(clientPlan),
+      system: buildSystemPrompt(clientPlan, channel),
       tools: availableTools,
       messages,
     })
@@ -3893,23 +3902,40 @@ Deno.serve(async (req) => {
 
   try {
     console.log('[VERSION] prymal-chat deployed 2026-06-28 v2.5 with detailed token logging')
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-    const anonClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!)
-    const { data: { user }, error: authError } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''))
-    if (authError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
 
-    const { data: clientRow } = await supabase
-      .from('prymal_clients')
-      .select('id, anthropic_api_key, gemini_api_key, plan')
-      .eq('user_id', user.id)
-      .single()
+    const body = await req.json()
+    const { message, history = [], channel = 'web' } = body
+
+    // ── Auth: user JWT (web) OR internal shared secret (SMS/WhatsApp bridge) ──
+    let clientRow: { id: string; anthropic_api_key: string | null; gemini_api_key: string | null; plan: string } | null = null
+
+    const internalKey = req.headers.get('x-internal-key')
+    const INTERNAL_SECRET = Deno.env.get('INTERNAL_FUNCTION_SECRET') ?? ''
+    if (internalKey && INTERNAL_SECRET && internalKey === INTERNAL_SECRET && body.client_id) {
+      const { data } = await supabase
+        .from('prymal_clients')
+        .select('id, anthropic_api_key, gemini_api_key, plan')
+        .eq('id', body.client_id)
+        .single()
+      clientRow = data
+    } else {
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+
+      const anonClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!)
+      const { data: { user }, error: authError } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''))
+      if (authError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+
+      const { data } = await supabase
+        .from('prymal_clients')
+        .select('id, anthropic_api_key, gemini_api_key, plan')
+        .eq('user_id', user.id)
+        .single()
+      clientRow = data
+    }
 
     if (!clientRow) return new Response(JSON.stringify({ error: 'Client not found.' }), { status: 404 })
-
-    const { message, history = [] } = await req.json()
 
     // Validate inputs
     let validatedMessage: string
@@ -3971,7 +3997,7 @@ Deno.serve(async (req) => {
     if (anthropicKey) {
       try {
         finalText = await runHaikuLoop(
-          anthropicKey, history, validatedMessage, supabase, clientRow.id, clientPlan
+          anthropicKey, history, validatedMessage, supabase, clientRow.id, clientPlan, channel
         )
       } catch (haikuErr) {
         // Anthropic unavailable or quota exceeded — fall back to Gemini
@@ -3983,12 +4009,12 @@ Deno.serve(async (req) => {
           )
         }
         finalText = await runGeminiLoop(
-          geminiKey, history, validatedMessage, supabase, clientRow.id, clientPlan
+          geminiKey, history, validatedMessage, supabase, clientRow.id, clientPlan, channel
         )
       }
     } else if (geminiKey) {
       finalText = await runGeminiLoop(
-        geminiKey, history, validatedMessage, supabase, clientRow.id, clientPlan
+        geminiKey, history, validatedMessage, supabase, clientRow.id, clientPlan, channel
       )
     } else {
       return new Response(
