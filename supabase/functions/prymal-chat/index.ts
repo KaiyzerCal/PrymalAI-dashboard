@@ -69,21 +69,32 @@ PROACTIVE HABITS:
 - FOLLOW-UPS: When reviewing email or giving a brief, surface threads the client is waiting on with find_followups_needed and offer to draft the nudge (queue via queue_action — never send directly).
 - MEETING PREP: Before meetings, or on request, use meeting_prep and deliver a short per-meeting brief: who's attending, what you know about them, latest email context, anything owed.
 - After any meaningful interaction with a person's emails or events, quietly update relationship memory. Don't announce it every time.
+- STANDING INSTRUCTIONS: When the client states an ongoing goal ("never let me miss a birthday", "always flag unpaid invoices", "check in on cold leads weekly"), save it with create_standing_instruction — Alfy re-checks these automatically on schedule. When you learn a birthday, save it on the contact with remember_contact.
 
+TONE — sound like a person, not a chatbot:
+- No signposting ("Here's what I found:", "Great question!"). Just say the thing.
+- No chatbot sign-offs ("Let me know if you need anything else!", "Hope that helps!"). End when you're done.
+- Don't force lists of three or bullet-point everything. Use however many points are actually true, in prose when prose reads better.
+- Don't bold half the message. Bold at most the one thing that matters, usually nothing.
+- Don't hedge on things you already know. "3pm works" — not "Based on your calendar, it looks like 3pm could potentially work." If you checked, state it.
 ${channel === 'sms' ? `
 SMS MODE — you are talking over text message:
 - Keep replies SHORT. Under 500 characters whenever possible. No markdown, no headers, no bullets with asterisks — plain text with simple dashes.
 - One thing at a time. If there's a lot to report, give the top 2-3 items and offer "reply MORE for the rest".
 - For approvals: describe the queued action in one line and say "Reply YES to approve or NO to skip." When the user replies YES, approve the most recent pending action.
 - Never send long documents or full email bodies over SMS — summarize and mention the dashboard for detail.
+- Text like a sharp friend: lowercase-casual is fine, but never sloppy about facts, names, or numbers.
+` : ''}${channel === 'automation' ? `
+AUTOMATION MODE — this is a scheduled background check. No human is reading this conversation live.
+- You are re-checking a standing instruction the client gave earlier. Use tools to look at the current state (contacts, calendar, memory, email) and decide whether action is needed TODAY.
+- If nothing needs doing right now, reply with exactly: NO_ACTION
+- If something needs doing, take it: anything external goes through queue_action for approval as always; internal things (calendar events for the client themselves, memory updates) you may do directly.
+- Finish with one short line describing what you did, so it can be logged.
 ` : ''}
-CAPABILITIES BY TIER:`
+${SYSTEM_CAPABILITIES}`
 }
 
-// Keep for reference but use buildSystemPrompt(clientPlan) instead
-const SYSTEM_PROMPT = `You are Prymal — an autonomous AI Google Agent managing a client's full Google workspace and online presence.
-
-CAPABILITIES BY TIER:
+const SYSTEM_CAPABILITIES = `CAPABILITIES BY TIER:
 - Free ($0/mo): Dashboard & profile setup only (no agent access)
 
 - Tier 1 ($17/mo) — EMAIL MASTERY: Gmail
@@ -241,7 +252,8 @@ const TOOLS: Anthropic.Tool[] = [
         action_type: { type: 'string', description: 'e.g. respond_to_review, send_email, create_event, drive_report' },
         summary: { type: 'string', description: 'Short title for the approval card' },
         draft_content: { type: 'string', description: 'Full content the client will review' },
-        metadata: { type: 'object', description: 'Extra context. For send_email: always include "to" (recipient email address) and "subject". For review responses: review_id. For events: start, end, title, attendees.' }
+        metadata: { type: 'object', description: 'Extra context. For send_email: always include "to" (recipient email address) and "subject". For review responses: review_id. For events: start, end, title, attendees.' },
+        batch_id: { type: 'string', description: 'When one request produces several related actions (e.g. 5 tickets + a summary post), give them all the same short batch_id so the client can approve them together as one card.' }
       },
       required: ['action_type', 'summary', 'draft_content']
     }
@@ -270,9 +282,36 @@ const TOOLS: Anthropic.Tool[] = [
         company: { type: 'string' },
         context_summary: { type: 'string', description: 'What you know: who they are, current threads, commitments, preferences. Keep it current — rewrite, don\'t append endlessly.' },
         tags: { type: 'array', items: { type: 'string' }, description: 'e.g. ["client", "investor", "new-york", "fitness"]' },
-        last_interaction: { type: 'string', description: 'ISO date of the most recent interaction, if known' }
+        last_interaction: { type: 'string', description: 'ISO date of the most recent interaction, if known' },
+        birthday: { type: 'string', description: 'Birthday if known, e.g. "March 3" or "1990-03-03". Year optional.' }
       },
       required: ['contact_email', 'context_summary']
+    }
+  },
+  {
+    name: 'create_standing_instruction',
+    description: 'Save a standing instruction — an ongoing goal Alfy re-checks automatically on a schedule (e.g. "never let me miss a birthday", "remind me to follow up with cold leads weekly", "keep an eye on invoices that go unpaid"). Store the goal in the client\'s own words.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        goal_text: { type: 'string', description: 'The ongoing goal, phrased as the client stated it' },
+        cadence: { type: 'string', enum: ['hourly', 'daily', 'weekly'], description: 'How often to re-check. Default daily.' }
+      },
+      required: ['goal_text']
+    }
+  },
+  {
+    name: 'list_standing_instructions',
+    description: 'List the client\'s active standing instructions and when each last ran.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'cancel_standing_instruction',
+    description: 'Cancel a standing instruction by id (get ids from list_standing_instructions).',
+    input_schema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id']
     }
   },
   {
@@ -1343,6 +1382,7 @@ async function handleTool(
           draft_content: input.draft_content,
           status: 'pending',
           metadata: input.metadata ?? null,
+          batch_id: input.batch_id ?? null,
         })
         .select('id')
         .single()
@@ -1374,11 +1414,46 @@ async function handleTool(
       if (input.company !== undefined) row.company = input.company
       if (input.tags !== undefined) row.tags = input.tags
       if (input.last_interaction !== undefined) row.last_interaction = input.last_interaction
+      if (input.birthday !== undefined) row.birthday = input.birthday
       const { error } = await supabase
         .from('prymal_contact_memory')
         .upsert(row, { onConflict: 'client_id,contact_email' })
       if (error) return { error: error.message }
       return { saved: true, contact_email: email }
+    }
+
+    case 'create_standing_instruction': {
+      const goal = (input.goal_text as string ?? '').trim()
+      if (!goal) return { error: 'goal_text is required' }
+      const cadence = ['hourly', 'daily', 'weekly'].includes(input.cadence as string) ? input.cadence : 'daily'
+      const { data, error } = await supabase
+        .from('prymal_standing_instructions')
+        .insert({ client_id: clientId, goal_text: goal, trigger_config: { cadence } })
+        .select('id')
+        .single()
+      if (error) return { error: error.message }
+      return { created: true, id: data.id, cadence, message: `Standing instruction saved — Alfy will check on this ${cadence}.` }
+    }
+
+    case 'list_standing_instructions': {
+      const { data, error } = await supabase
+        .from('prymal_standing_instructions')
+        .select('id, goal_text, trigger_config, status, last_run_at, last_result, created_at')
+        .eq('client_id', clientId)
+        .neq('status', 'cancelled')
+        .order('created_at', { ascending: false })
+      if (error) return { error: error.message }
+      return { count: data?.length ?? 0, instructions: data ?? [] }
+    }
+
+    case 'cancel_standing_instruction': {
+      const { error } = await supabase
+        .from('prymal_standing_instructions')
+        .update({ status: 'cancelled' })
+        .eq('id', input.id)
+        .eq('client_id', clientId)
+      if (error) return { error: error.message }
+      return { cancelled: true }
     }
 
     case 'recall_contacts': {
