@@ -54,11 +54,21 @@ function buildSystemPrompt(clientPlan: string): string {
   }
   const currentPlanLabel = planLabels[clientPlan] ?? `Unknown plan: ${clientPlan}`
 
-  return `You are Prymal — an autonomous AI Google Agent managing a client's full Google workspace and online presence.
+  return `You are Alfy — the client's personal AI assistant on the Prymal AI platform. You manage their full Google workspace and online presence, and you act like a sharp, capable chief of staff: warm, direct, proactive, never robotic.
 
 CURRENT USER PLAN: ${currentPlanLabel}
 
 IMPORTANT: Only tell the user about features their current plan includes. If they ask about a feature they don't have access to, tell them which plan they need to upgrade to and direct them to Settings → Billing. Never describe paid features as available to a free or trial user unless they are on that plan.
+
+RELATIONSHIP MEMORY (all plans):
+- You have persistent memory about the people the client works with. Use remember_contact to save what you learn (who someone is, what's in flight, commitments made) whenever you read email threads, prep meetings, or the client tells you about someone. Rewrite the context_summary to stay current — don't let it go stale.
+- Use recall_contacts to answer "what's the status with X?", "who do I know at Y?", or "who haven't I talked to lately?" (use stale_days for reconnection suggestions).
+
+PROACTIVE HABITS:
+- MORNING BRIEF: When the client asks "what's my day look like", "catch me up", "morning brief", or similar — compose a single tight brief: unread/important emails (get_emails "is:unread"), today's calendar (get_calendar_events, if plan allows), tasks due (list_tasks, if plan allows), and threads waiting on replies (find_followups_needed). Lead with what needs action. Keep it scannable.
+- FOLLOW-UPS: When reviewing email or giving a brief, surface threads the client is waiting on with find_followups_needed and offer to draft the nudge (queue via queue_action — never send directly).
+- MEETING PREP: Before meetings, or on request, use meeting_prep and deliver a short per-meeting brief: who's attending, what you know about them, latest email context, anything owed.
+- After any meaningful interaction with a person's emails or events, quietly update relationship memory. Don't announce it every time.
 
 CAPABILITIES BY TIER:`
 }
@@ -237,6 +247,60 @@ const TOOLS: Anthropic.Tool[] = [
       properties: {
         brand_tone: { type: 'string' },
         knowledge_base: { type: 'string' }
+      }
+    }
+  },
+
+  // ── All plans : Relationship memory (Alfy) ──
+  {
+    name: 'remember_contact',
+    description: 'Save or update relationship memory for a contact. Call this whenever you learn something meaningful about a person — after reading email threads, scheduling meetings, or when the client tells you about someone. Merge new context with what you already know.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        contact_email: { type: 'string', description: 'The contact\'s email address (unique key)' },
+        contact_name: { type: 'string' },
+        company: { type: 'string' },
+        context_summary: { type: 'string', description: 'What you know: who they are, current threads, commitments, preferences. Keep it current — rewrite, don\'t append endlessly.' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'e.g. ["client", "investor", "new-york", "fitness"]' },
+        last_interaction: { type: 'string', description: 'ISO date of the most recent interaction, if known' }
+      },
+      required: ['contact_email', 'context_summary']
+    }
+  },
+  {
+    name: 'recall_contacts',
+    description: 'Search relationship memory. Use for "what\'s the status with X?", "who do I know at Y?", "who haven\'t I spoken to in a while?". Searches name, email, company, and context.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Free-text search across name, email, company, and context summary' },
+        tag: { type: 'string', description: 'Filter by a single tag' },
+        stale_days: { type: 'number', description: 'Only return contacts with no interaction in this many days (for reconnection suggestions)' },
+        limit: { type: 'number', default: 10 }
+      }
+    }
+  },
+  {
+    name: 'find_followups_needed',
+    description: '[Tier 1+] Scan sent Gmail for threads where the client sent the last message and never received a reply. Use for proactive follow-up suggestions and the morning brief.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        days_back: { type: 'number', default: 14, description: 'How far back to scan sent mail' },
+        min_age_days: { type: 'number', default: 3, description: 'Only flag threads where the unanswered message is at least this old' },
+        maxThreads: { type: 'number', default: 15 }
+      }
+    }
+  },
+  {
+    name: 'meeting_prep',
+    description: '[Tier 2+] Build a prep brief for upcoming meetings: pulls calendar events, recent email history with each attendee, and relationship memory. Use when the client asks to prep for a meeting or as part of the morning brief.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        hours_ahead: { type: 'number', default: 48, description: 'Look-ahead window for events' },
+        event_id: { type: 'string', description: 'Prep a single specific event instead' }
       }
     }
   },
@@ -1286,6 +1350,195 @@ async function handleTool(
       const { error } = await supabase.from('prymal_clients').update(updates).eq('id', clientId)
       if (error) throw new Error(error.message)
       return { updated: true, fields: Object.keys(updates) }
+    }
+
+    // ── All plans : Relationship memory (Alfy) ──
+
+    case 'remember_contact': {
+      const email = (input.contact_email as string ?? '').trim().toLowerCase()
+      if (!email) return { error: 'contact_email is required' }
+      const row: Record<string, unknown> = {
+        client_id: clientId,
+        contact_email: email,
+        context_summary: input.context_summary ?? null,
+        updated_at: new Date().toISOString(),
+      }
+      if (input.contact_name !== undefined) row.contact_name = input.contact_name
+      if (input.company !== undefined) row.company = input.company
+      if (input.tags !== undefined) row.tags = input.tags
+      if (input.last_interaction !== undefined) row.last_interaction = input.last_interaction
+      const { error } = await supabase
+        .from('prymal_contact_memory')
+        .upsert(row, { onConflict: 'client_id,contact_email' })
+      if (error) return { error: error.message }
+      return { saved: true, contact_email: email }
+    }
+
+    case 'recall_contacts': {
+      let q = supabase
+        .from('prymal_contact_memory')
+        .select('contact_email, contact_name, company, context_summary, tags, last_interaction, updated_at')
+        .eq('client_id', clientId)
+      if (input.query) {
+        const term = `%${input.query}%`
+        q = q.or(`contact_name.ilike.${term},contact_email.ilike.${term},company.ilike.${term},context_summary.ilike.${term}`)
+      }
+      if (input.tag) q = q.contains('tags', [input.tag])
+      if (input.stale_days) {
+        const cutoff = new Date(Date.now() - (input.stale_days as number) * 86400000).toISOString()
+        q = q.lt('last_interaction', cutoff)
+      }
+      const { data, error } = await q.order('updated_at', { ascending: false }).limit((input.limit as number) ?? 10)
+      if (error) return { error: error.message }
+      if (!data?.length) return { count: 0, contacts: [], message: 'No contacts found in memory matching that. Memory builds up as you work — use remember_contact when you learn about people.' }
+      return { count: data.length, contacts: data }
+    }
+
+    case 'find_followups_needed': {
+      requirePlan('tier1', 'Gmail')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      // Whose address is this inbox?
+      const profRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const profile = await profRes.json()
+      const myEmail = (profile.emailAddress ?? '').toLowerCase()
+
+      const daysBack = (input.days_back as number) ?? 14
+      const minAgeDays = (input.min_age_days as number) ?? 3
+      const maxThreads = Math.min((input.maxThreads as number) ?? 15, 25)
+
+      const listRes = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/threads?q=${encodeURIComponent(`in:sent -in:chats newer_than:${daysBack}d`)}&maxResults=${maxThreads}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const listData = await listRes.json()
+      if (listData.error) return { error: listData.error.message ?? JSON.stringify(listData.error) }
+      if (!listData.threads?.length) return { count: 0, followups: [], message: 'No sent threads found in that window.' }
+
+      const cutoffMs = Date.now() - minAgeDays * 86400000
+      const followups: Record<string, unknown>[] = []
+
+      for (const t of listData.threads.slice(0, maxThreads)) {
+        const thRes = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        const th = await thRes.json()
+        const msgs = th.messages ?? []
+        if (!msgs.length) continue
+        const last = msgs[msgs.length - 1]
+        const headers: Record<string, string> = {}
+        for (const h of last.payload?.headers ?? []) headers[h.name] = h.value
+        const lastFrom = (headers['From'] ?? '').toLowerCase()
+        const lastDate = Number(last.internalDate ?? 0)
+        // Flag only if the LAST message in the thread was sent by the user and it's old enough
+        if (myEmail && lastFrom.includes(myEmail) && lastDate > 0 && lastDate < cutoffMs) {
+          followups.push({
+            threadId: t.id,
+            subject: headers['Subject'] ?? '(no subject)',
+            to: headers['To'] ?? '',
+            sentDate: headers['Date'] ?? '',
+            daysWaiting: Math.floor((Date.now() - lastDate) / 86400000),
+            snippet: (last.snippet ?? '').slice(0, 150),
+          })
+        }
+      }
+
+      followups.sort((a, b) => (b.daysWaiting as number) - (a.daysWaiting as number))
+      return { count: followups.length, followups, message: followups.length ? 'These threads are waiting on a reply. Offer to draft follow-ups (queue via queue_action).' : 'Nothing waiting on a reply — inbox is in good shape.' }
+    }
+
+    case 'meeting_prep': {
+      requirePlan('tier2', 'Meeting prep')
+      const calToken = await getFreshToken(supabase, clientId, 'calendar')
+      if (!calToken) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
+
+      let events: Record<string, unknown>[] = []
+      if (input.event_id) {
+        const evRes = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${input.event_id}`,
+          { headers: { Authorization: `Bearer ${calToken}` } }
+        )
+        const ev = await evRes.json()
+        if (ev.error) return { error: ev.error.message ?? JSON.stringify(ev.error) }
+        events = [ev]
+      } else {
+        const hoursAhead = (input.hours_ahead as number) ?? 48
+        const params = new URLSearchParams({
+          timeMin: new Date().toISOString(),
+          timeMax: new Date(Date.now() + hoursAhead * 3600000).toISOString(),
+          maxResults: '10',
+          singleEvents: 'true',
+          orderBy: 'startTime',
+        })
+        const evRes = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
+          { headers: { Authorization: `Bearer ${calToken}` } }
+        )
+        const evData = await evRes.json()
+        if (evData.error) return { error: evData.error.message ?? JSON.stringify(evData.error) }
+        events = evData.items ?? []
+      }
+      if (!events.length) return { count: 0, briefs: [], message: 'No upcoming meetings in that window.' }
+
+      const gmailToken = await getFreshToken(supabase, clientId, 'gmail')
+      const briefs: Record<string, unknown>[] = []
+
+      for (const ev of events.slice(0, 5)) {
+        const attendees = ((ev.attendees as Record<string, unknown>[] | undefined) ?? [])
+          .map(a => (a.email as string ?? '').toLowerCase())
+          .filter(e => e && !(e.includes('resource.calendar.google.com')))
+          .slice(0, 5)
+
+        const attendeeContext: Record<string, unknown>[] = []
+        for (const email of attendees) {
+          // Relationship memory
+          const { data: mem } = await supabase
+            .from('prymal_contact_memory')
+            .select('contact_name, company, context_summary, tags, last_interaction')
+            .eq('client_id', clientId)
+            .eq('contact_email', email)
+            .maybeSingle()
+
+          // Recent email history
+          let recentEmails: Record<string, unknown>[] = []
+          if (gmailToken) {
+            const gRes = await fetch(
+              `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(`from:${email} OR to:${email}`)}&maxResults=3`,
+              { headers: { Authorization: `Bearer ${gmailToken}` } }
+            )
+            const gData = await gRes.json()
+            recentEmails = await Promise.all(
+              (gData.messages ?? []).slice(0, 3).map(async (m: { id: string }) => {
+                const mRes = await fetch(
+                  `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=Date`,
+                  { headers: { Authorization: `Bearer ${gmailToken}` } }
+                )
+                const msg = await mRes.json()
+                const hs: Record<string, string> = {}
+                for (const h of msg.payload?.headers ?? []) hs[h.name] = h.value
+                return { subject: hs['Subject'] ?? '', date: hs['Date'] ?? '', snippet: (msg.snippet ?? '').slice(0, 120) }
+              })
+            )
+          }
+
+          attendeeContext.push({ email, memory: mem ?? null, recent_emails: recentEmails })
+        }
+
+        briefs.push({
+          event_id: ev.id,
+          title: ev.summary ?? '(no title)',
+          start: (ev.start as Record<string, string>)?.dateTime ?? (ev.start as Record<string, string>)?.date ?? '',
+          location: ev.location ?? '',
+          description: ((ev.description as string) ?? '').slice(0, 300),
+          attendees: attendeeContext,
+        })
+      }
+
+      return { count: briefs.length, briefs, message: 'Compose a concise prep brief per meeting: who they are, where things stand, and anything owed to them.' }
     }
 
     // ── Pro+ : GBP ──

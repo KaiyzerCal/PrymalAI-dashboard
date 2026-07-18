@@ -126,7 +126,7 @@ function renderMarkdown(text: string): React.ReactNode {
 
 const INITIAL_MESSAGE: DisplayMessage = {
   role: 'assistant',
-  content: 'Hi — I\'m Prymal. Ask me anything about your agents, approvals, emails, or calendar. I can also take actions on your behalf.',
+  content: 'Hi — I\'m Alfy, your assistant. Ask me for your morning brief, what needs a follow-up, or anything about your emails, calendar, and files. I can take actions on your behalf — you approve everything first.',
 }
 
 const CORRUPTION_PATTERNS = [
@@ -248,8 +248,8 @@ export function ChatWidget() {
     setHistory([])
   }
 
-  async function send() {
-    const msg = input.trim()
+  async function send(textOverride?: string) {
+    const msg = (textOverride ?? input).trim()
     if (!msg || loading) return
 
     setInput('')
@@ -396,7 +396,8 @@ export function ChatWidget() {
                 className="w-2 h-2 rounded-full"
                 style={{ background: '#00d4ff', boxShadow: '0 0 6px #00d4ff', animation: 'pulse-dot 2s infinite' }}
               />
-              <span className="text-xs font-bold tracking-widest" style={{ color: '#00d4ff' }}>PRYMAL AI</span>
+              <span className="text-xs font-bold tracking-widest" style={{ color: '#00d4ff' }}>ALFY</span>
+              <span className="text-xs" style={{ color: 'rgba(0,212,255,0.35)' }}>by Prymal AI</span>
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -481,9 +482,28 @@ export function ChatWidget() {
           </div>
 
           <div
-            className="px-4 py-3 flex gap-2 flex-shrink-0 items-end"
+            className="px-4 py-3 flex flex-col gap-2 flex-shrink-0"
             style={{ borderTop: '1px solid rgba(0,212,255,0.08)' }}
           >
+            {displayMessages.length <= 1 && !loading && (
+              <div className="flex gap-1.5 flex-wrap">
+                {[
+                  { label: '☀️ Morning brief', msg: 'Give me my morning brief — what needs my attention today?' },
+                  { label: '📮 Follow-ups', msg: 'Which of my sent emails are still waiting on a reply? Anything I should nudge?' },
+                  { label: '📅 Prep my meetings', msg: 'Prep me for my upcoming meetings — who am I meeting and where do things stand with them?' },
+                ].map(chip => (
+                  <button
+                    key={chip.label}
+                    onClick={() => send(chip.msg)}
+                    className="px-2.5 py-1 rounded-full text-xs font-semibold transition-all"
+                    style={{ background: 'rgba(0,212,255,0.07)', border: '1px solid rgba(0,212,255,0.2)', color: 'rgba(0,212,255,0.8)' }}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 items-end">
             <button
               onClick={toggleMic}
               disabled={loading}
@@ -508,7 +528,7 @@ export function ChatWidget() {
               rows={1}
             />
             <button
-              onClick={send}
+              onClick={() => send()}
               disabled={!input.trim() || loading}
               className="p-2 rounded-lg transition-all flex-shrink-0"
               style={{
@@ -519,6 +539,7 @@ export function ChatWidget() {
             >
               <Send size={18} />
             </button>
+            </div>
           </div>
         </div>
       )}
