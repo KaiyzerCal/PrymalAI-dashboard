@@ -1,4 +1,5 @@
 // Email service for sending transactional emails
+import { corsHeaders } from '../_shared/cors.ts'
 // Supports: Resend, Sendgrid, or any SMTP service
 
 const EMAIL_SERVICE = Deno.env.get('EMAIL_SERVICE') || 'resend' // 'resend' or 'sendgrid'
@@ -6,7 +7,7 @@ const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const SENDGRID_API_KEY = Deno.env.get('SENDGRID_API_KEY')
 const SENDER_EMAIL = Deno.env.get('SENDER_EMAIL') || 'noreply@prymalai.com'
 
-const CORS = {
+const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -197,6 +198,7 @@ async function sendWithSendgrid(to: string, subject: string, html: string): Prom
 }
 
 Deno.serve(async (req) => {
+  Object.assign(CORS, corsHeaders(req))
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: CORS })
   }

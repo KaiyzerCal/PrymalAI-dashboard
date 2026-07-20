@@ -1,0 +1,22 @@
+# Per-function gateway settings — read by `supabase functions deploy`.
+# Webhooks receive unauthenticated POSTs from Twilio/Stripe and validate
+# their own signatures; everything else requires a Supabase JWT.
+project_id = "josabyyaarhlgepfelid"
+
+[functions.prymal-sms]
+verify_jwt = false
+
+[functions.prymal-stripe-webhook]
+verify_jwt = false
+
+[functions.prymal-chat]
+verify_jwt = false  # accepts user JWT or x-internal-key; validates internally
+
+[functions.prymal-approval-flow]
+verify_jwt = false  # same dual-path validation as prymal-chat
+
+[functions.prymal-automation-runner]
+verify_jwt = false  # guarded by x-runner-key internal secret
+
+[functions.prymal-digest]
+verify_jwt = false  # guarded by x-runner-key internal secret

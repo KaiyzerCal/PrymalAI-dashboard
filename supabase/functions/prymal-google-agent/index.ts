@@ -52,6 +52,19 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*' } })
   }
 
+  // Admin-only: this scans every client. Mirrors src/hooks/useAdmin.ts.
+  const ADMIN_EMAILS = ['projectapexai@gmail.com', 'caljohnathon@gmail.com', 'skyforgeai.studio@gmail.com']
+  const runnerKey = req.headers.get('x-runner-key')
+  const internalSecret = Deno.env.get('INTERNAL_FUNCTION_SECRET') ?? ''
+  if (!(runnerKey && internalSecret && runnerKey === internalSecret)) {
+    const authHeader = req.headers.get('Authorization') ?? ''
+    const anon = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!)
+    const { data } = await anon.auth.getUser(authHeader.replace('Bearer ', ''))
+    if (!data.user || !ADMIN_EMAILS.includes(data.user.email ?? '')) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 })
+    }
+  }
+
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
   // Get all clients with GBP connected

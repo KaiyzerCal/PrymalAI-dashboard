@@ -1,4 +1,5 @@
 // Phone verification for the Text Alfy channel.
+import { corsHeaders } from '../_shared/cors.ts'
 // actions: status | start (send code) | check (confirm code) | disconnect
 import { createClient } from 'npm:@supabase/supabase-js'
 
@@ -8,7 +9,7 @@ const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID') ?? ''
 const TWILIO_AUTH_TOKEN = Deno.env.get('TWILIO_AUTH_TOKEN') ?? ''
 const TWILIO_PHONE_NUMBER = Deno.env.get('TWILIO_PHONE_NUMBER') ?? ''
 
-const CORS = {
+const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -22,6 +23,7 @@ function json(body: unknown, status = 200) {
 }
 
 Deno.serve(async (req) => {
+  Object.assign(CORS, corsHeaders(req))
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
 
   try {

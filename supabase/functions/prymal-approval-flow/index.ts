@@ -1,11 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders } from '../_shared/cors.ts'
+import { sendSms } from '../_shared/twilio.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
 
-const CORS = {
+const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, content-type',
 }
@@ -71,21 +73,30 @@ function buildGmailRaw(opts: { to: string; subject: string; body: string; from?:
 }
 
 Deno.serve(async (req: Request) => {
+  Object.assign(CORS, corsHeaders(req))
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: CORS })
   }
 
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
-
-    const anonClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!)
-    const { data: { user }, error: userError } = await anonClient.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    )
-    if (userError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
-
     const body = await req.json()
+
+    // Two auth paths: user JWT (dashboard) or the internal secret (SMS/automation bridges)
+    const internalKey = req.headers.get('x-internal-key')
+    const internalSecret = Deno.env.get('INTERNAL_FUNCTION_SECRET') ?? ''
+    let internalClientId: string | null = null
+    let user: { id: string } | null = null
+
+    if (internalKey && internalSecret && internalKey === internalSecret && body.client_id) {
+      internalClientId = body.client_id
+    } else {
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
+      const anonClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!)
+      const { data, error: userError } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''))
+      if (userError || !data.user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
+      user = data.user
+    }
     const approval_id = body.approval_id ?? body.item_id
     const reply_text = body.reply_text
     if (!approval_id || reply_text === undefined)
@@ -101,7 +112,10 @@ Deno.serve(async (req: Request) => {
       .single()
 
     if (!approval) return new Response(JSON.stringify({ error: 'Approval not found' }), { status: 404, headers: CORS })
-    if (approval.prymal_clients.user_id !== user.id)
+    const owned = internalClientId
+      ? approval.client_id === internalClientId
+      : approval.prymal_clients.user_id === user!.id
+    if (!owned)
       return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: CORS })
 
     const trimmed = reply_text.trim()
@@ -163,8 +177,25 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Gmail send
-    else if (actionType === 'send_email') {
+    // Friend invite — sends the approved text via Twilio and records it
+    else if (actionType === 'invite_friend') {
+      const toPhone = (meta.to_phone ?? '') as string
+      if (toPhone) {
+        const ok = await sendSms(toPhone, finalText)
+        if (ok) {
+          await admin.from('prymal_invites').insert({
+            client_id: clientId, phone: toPhone, name: (meta.name as string) ?? null, status: 'sent',
+          })
+        }
+        executionResult = { sent: ok, to: toPhone }
+      } else {
+        executionResult = { sent: false, error: 'Missing to_phone in metadata.' }
+      }
+    }
+
+    // Gmail send — also executes errand requests (reservations, appointments,
+    // flights, bills) drafted as an email to the counterparty
+    else if (actionType === 'send_email' || (['book_reservation','book_appointment','book_flight','pay_bill'].includes(actionType) && (meta.to || meta.recipient || meta.recipient_email))) {
       const accessToken = await getValidAccessToken(admin, clientId, 'gmail')
       const recipient = (meta.to ?? meta.recipient ?? meta.recipient_email ?? '') as string
       if (accessToken && recipient) {
