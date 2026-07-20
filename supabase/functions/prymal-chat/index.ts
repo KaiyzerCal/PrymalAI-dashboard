@@ -39,6 +39,19 @@ function filterToolsByPlan(tools: Anthropic.Tool[], clientPlan: string): Anthrop
   return filtered
 }
 
+// ponytail: in-memory per-isolate rate limit — durable per-client quotas if abuse appears
+const RATE_WINDOW_MS = 60 * 60 * 1000
+const RATE_MAX = 60
+const rateBuckets = new Map<string, number[]>()
+function rateLimited(clientId: string): boolean {
+  const now = Date.now()
+  const hits = (rateBuckets.get(clientId) ?? []).filter(t => now - t < RATE_WINDOW_MS)
+  if (hits.length >= RATE_MAX) { rateBuckets.set(clientId, hits); return true }
+  hits.push(now)
+  rateBuckets.set(clientId, hits)
+  return false
+}
+
 function buildSystemPrompt(clientPlan: string, channel: string = 'web'): string {
   const planLabels: Record<string, string> = {
     free: 'Free (no paid features — cannot access any Google tools)',
@@ -4055,6 +4068,12 @@ Deno.serve(async (req) => {
     }
 
     if (!clientRow) return new Response(JSON.stringify({ error: 'Client not found.' }), { status: 404 })
+
+    if (rateLimited(clientRow.id)) {
+      return new Response(JSON.stringify({ error: "Alfy's catching its breath — try again in a few minutes." }), {
+        status: 429, headers: { 'Content-Type': 'application/json', ...CORS },
+      })
+    }
 
     // Validate inputs
     let validatedMessage: string
