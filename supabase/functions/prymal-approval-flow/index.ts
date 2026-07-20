@@ -86,6 +86,59 @@ function buildGmailRaw(opts: { to: string; subject: string; body: string; from?:
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+// Try each platform token in order (handles Google's per-scope connections)
+async function tokenFor(
+  admin: ReturnType<typeof createClient>,
+  clientId: string,
+  platforms: string[]
+): Promise<string | null> {
+  for (const p of platforms) {
+    const t = await getValidAccessToken(admin, clientId, p)
+    if (t) return t
+  }
+  return null
+}
+
+// Resolve a Gmail label name to its id, creating the label if it doesn't exist
+async function gmailResolveLabelId(token: string, labelName: string): Promise<string | null> {
+  const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await res.json()
+  const existing = (data.labels ?? []).find(
+    (l: { name: string }) => l.name?.toLowerCase() === labelName.toLowerCase()
+  )
+  if (existing) return existing.id
+  const cr = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: labelName, labelListVisibility: 'labelShow', messageListVisibility: 'show' }),
+  })
+  const cd = await cr.json()
+  return cd.id ?? null
+}
+
+// Apply add/remove label sets across many threads; returns success count
+async function gmailModifyThreads(
+  token: string,
+  threadIds: string[],
+  addLabelIds: string[],
+  removeLabelIds: string[]
+): Promise<{ ok: number; failed: number; lastError?: string }> {
+  let ok = 0, failed = 0
+  let lastError: string | undefined
+  for (const id of threadIds) {
+    const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}/modify`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addLabelIds, removeLabelIds }),
+    })
+    if (res.ok) ok++
+    else { failed++; lastError = (await res.json())?.error?.message }
+  }
+  return { ok, failed, lastError }
+}
+
 Deno.serve(async (req: Request) => {
   Object.assign(CORS, corsHeaders(req))
   if (req.method === 'OPTIONS') {
@@ -408,6 +461,446 @@ Deno.serve(async (req: Request) => {
         scheduled_for: (meta.scheduled_for as string) ?? null,
       }).select()
       executionResult = { queued: true, platform }
+    }
+
+    // ═══ Gmail: labels / organize / management ═══════════════════════════════
+    else if (actionType === 'create_label') {
+      const token = await tokenFor(admin, clientId, ['gmail'])
+      if (!token) executionResult = { done: false, error: 'Gmail not connected.' }
+      else {
+        const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: meta.name,
+            labelListVisibility: meta.labelListVisibility ?? 'labelShow',
+            messageListVisibility: meta.messageListVisibility ?? 'show',
+          }),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true, label_id: d.id, name: d.name } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    else if (actionType === 'apply_label') {
+      const token = await tokenFor(admin, clientId, ['gmail'])
+      if (!token) executionResult = { done: false, error: 'Gmail not connected.' }
+      else {
+        const labelId = await gmailResolveLabelId(token, meta.labelName as string)
+        if (!labelId) executionResult = { done: false, error: `Could not resolve or create label "${meta.labelName}".` }
+        else {
+          const r = await gmailModifyThreads(token, (meta.threadIds as string[]) ?? [], [labelId], [])
+          executionResult = { done: r.failed === 0, labeled: r.ok, failed: r.failed, error: r.lastError }
+        }
+      }
+    }
+
+    else if (actionType === 'remove_label') {
+      const token = await tokenFor(admin, clientId, ['gmail'])
+      if (!token) executionResult = { done: false, error: 'Gmail not connected.' }
+      else {
+        const labelId = await gmailResolveLabelId(token, meta.labelName as string)
+        if (!labelId) executionResult = { done: false, error: `Label "${meta.labelName}" not found.` }
+        else {
+          const r = await gmailModifyThreads(token, (meta.threadIds as string[]) ?? [], [], [labelId])
+          executionResult = { done: r.failed === 0, unlabeled: r.ok, failed: r.failed, error: r.lastError }
+        }
+      }
+    }
+
+    else if (actionType === 'archive_email') {
+      const token = await tokenFor(admin, clientId, ['gmail'])
+      if (!token) executionResult = { done: false, error: 'Gmail not connected.' }
+      else {
+        const r = await gmailModifyThreads(token, (meta.threadIds as string[]) ?? [], [], ['INBOX'])
+        executionResult = { done: r.failed === 0, archived: r.ok, failed: r.failed, error: r.lastError }
+      }
+    }
+
+    else if (actionType === 'mark_as_read') {
+      const token = await tokenFor(admin, clientId, ['gmail'])
+      if (!token) executionResult = { done: false, error: 'Gmail not connected.' }
+      else {
+        const r = await gmailModifyThreads(token, (meta.threadIds as string[]) ?? [], [], ['UNREAD'])
+        executionResult = { done: r.failed === 0, updated: r.ok, failed: r.failed, error: r.lastError }
+      }
+    }
+
+    else if (actionType === 'mark_as_unread') {
+      const token = await tokenFor(admin, clientId, ['gmail'])
+      if (!token) executionResult = { done: false, error: 'Gmail not connected.' }
+      else {
+        const r = await gmailModifyThreads(token, (meta.threadIds as string[]) ?? [], ['UNREAD'], [])
+        executionResult = { done: r.failed === 0, updated: r.ok, failed: r.failed, error: r.lastError }
+      }
+    }
+
+    else if (actionType === 'delete_email') {
+      const token = await tokenFor(admin, clientId, ['gmail'])
+      if (!token) executionResult = { done: false, error: 'Gmail not connected.' }
+      else {
+        // Move to trash (reversible) rather than permanent delete
+        let ok = 0, failed = 0
+        for (const id of (meta.threadIds as string[]) ?? []) {
+          const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}/trash`, {
+            method: 'POST', headers: { Authorization: `Bearer ${token}` },
+          })
+          res.ok ? ok++ : failed++
+        }
+        executionResult = { done: failed === 0, trashed: ok, failed }
+      }
+    }
+
+    else if (actionType === 'create_filter') {
+      const token = await tokenFor(admin, clientId, ['gmail'])
+      if (!token) executionResult = { done: false, error: 'Gmail not connected.' }
+      else {
+        const criteria: Record<string, string> = {}
+        if (meta.from) criteria.from = meta.from as string
+        if (meta.to) criteria.to = meta.to as string
+        if (meta.subject) criteria.subject = meta.subject as string
+        if (meta.query) criteria.query = meta.query as string
+        const action: Record<string, unknown> = {}
+        const act = meta.action as string
+        if (act === 'archive') action.removeLabelIds = ['INBOX']
+        else if (act === 'markRead') action.removeLabelIds = ['UNREAD']
+        else if (act === 'star') action.addLabelIds = ['STARRED']
+        else if (act === 'delete') action.addLabelIds = ['TRASH']
+        if (meta.label) {
+          const labelId = await gmailResolveLabelId(token, meta.label as string)
+          if (labelId) action.addLabelIds = [...(action.addLabelIds as string[] ?? []), labelId]
+        }
+        const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/settings/filters', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ criteria, action }),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true, filter_id: d.id } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    else if (actionType === 'set_auto_reply') {
+      const token = await tokenFor(admin, clientId, ['gmail'])
+      if (!token) executionResult = { done: false, error: 'Gmail not connected.' }
+      else {
+        const vacation: Record<string, unknown> = {
+          enableAutoReply: true,
+          responseSubject: meta.subject ?? '',
+          responseBodyPlainText: meta.message ?? finalText,
+          restrictToContacts: meta.restrictToContacts ?? false,
+          restrictToDomain: meta.restrictToDomain ?? false,
+        }
+        if (meta.startTime) vacation.startTime = String(new Date(meta.startTime as string).getTime())
+        if (meta.endTime) vacation.endTime = String(new Date(meta.endTime as string).getTime())
+        const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/settings/vacation', {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(vacation),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    else if (actionType === 'schedule_send') {
+      // Gmail API has no scheduled-send; save as a draft the user can send at the time
+      const token = await tokenFor(admin, clientId, ['gmail'])
+      if (!token) executionResult = { done: false, error: 'Gmail not connected.' }
+      else {
+        const raw = buildGmailRaw({ to: meta.to as string, subject: (meta.subject as string) ?? '(no subject)', body: finalText })
+        const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: { raw } }),
+        })
+        const d = await res.json()
+        executionResult = res.ok
+          ? { done: true, draft_id: d.id, note: 'Saved as a draft — Gmail\'s API cannot schedule sends. Open the draft and use Gmail\'s Schedule Send to set the time.' }
+          : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    // ═══ Calendar ════════════════════════════════════════════════════════════
+    else if (actionType === 'update_event') {
+      const token = await tokenFor(admin, clientId, ['calendar'])
+      if (!token) executionResult = { done: false, error: 'Calendar not connected.' }
+      else {
+        const patch: Record<string, unknown> = {}
+        if (meta.title) patch.summary = meta.title
+        if (meta.description) patch.description = meta.description
+        if (meta.location) patch.location = meta.location
+        if (meta.startTime) patch.start = { dateTime: meta.startTime, timeZone: (meta.timezone as string) ?? 'UTC' }
+        if (meta.endTime) patch.end = { dateTime: meta.endTime, timeZone: (meta.timezone as string) ?? 'UTC' }
+        if (meta.attendees) patch.attendees = (meta.attendees as string[]).map(email => ({ email }))
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${meta.eventId}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true, event_id: d.id, link: d.htmlLink } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    else if (actionType === 'delete_event' || actionType === 'cancel_meeting') {
+      const token = await tokenFor(admin, clientId, ['calendar'])
+      if (!token) executionResult = { done: false, error: 'Calendar not connected.' }
+      else {
+        const eventId = (meta.eventId ?? meta.meetingId) as string
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+        })
+        executionResult = res.ok || res.status === 204 ? { done: true, deleted: eventId } : { done: false, error: await res.text() }
+      }
+    }
+
+    else if (actionType === 'schedule_meet') {
+      const token = await tokenFor(admin, clientId, ['calendar'])
+      if (!token) executionResult = { done: false, error: 'Calendar not connected.' }
+      else {
+        const event: Record<string, unknown> = {
+          summary: meta.title, description: meta.description ?? finalText,
+          start: { dateTime: meta.startTime, timeZone: (meta.timezone as string) ?? 'UTC' },
+          end: { dateTime: meta.endTime ?? meta.startTime, timeZone: (meta.timezone as string) ?? 'UTC' },
+          conferenceData: { createRequest: { requestId: `prymal-${Date.now()}`, conferenceSolutionKey: { type: 'hangoutsMeet' } } },
+        }
+        if (meta.attendees) event.attendees = (meta.attendees as string[]).map(email => ({ email }))
+        const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(event),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true, event_id: d.id, meet_link: d.hangoutLink, link: d.htmlLink } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    // ═══ Google Tasks ════════════════════════════════════════════════════════
+    else if (actionType === 'create_task') {
+      const token = await tokenFor(admin, clientId, ['tasks'])
+      if (!token) executionResult = { done: false, error: 'Google Tasks not connected.' }
+      else {
+        const task: Record<string, unknown> = { title: meta.title, notes: meta.description ?? undefined }
+        if (meta.dueDate) task.due = new Date(meta.dueDate as string).toISOString()
+        const res = await fetch('https://tasks.googleapis.com/tasks/v1/lists/@default/tasks', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(task),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true, task_id: d.id } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    else if (actionType === 'update_task' || actionType === 'complete_task') {
+      const token = await tokenFor(admin, clientId, ['tasks'])
+      if (!token) executionResult = { done: false, error: 'Google Tasks not connected.' }
+      else {
+        const patch: Record<string, unknown> = {}
+        if (actionType === 'complete_task' || meta.status === 'completed') patch.status = 'completed'
+        if (meta.title) patch.title = meta.title
+        if (meta.description) patch.notes = meta.description
+        if (meta.dueDate) patch.due = new Date(meta.dueDate as string).toISOString()
+        const res = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${meta.taskId}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true, task_id: d.id } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    // ═══ Google Drive ══════════════════════════════════════════════════════════
+    else if (actionType === 'create_folder') {
+      const token = await tokenFor(admin, clientId, ['drive'])
+      if (!token) executionResult = { done: false, error: 'Google Drive not connected.' }
+      else {
+        const body: Record<string, unknown> = { name: meta.name, mimeType: 'application/vnd.google-apps.folder' }
+        if (meta.parentFolderId) body.parents = [meta.parentFolderId]
+        const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true, folder_id: d.id } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    else if (actionType === 'move_file') {
+      const token = await tokenFor(admin, clientId, ['drive'])
+      if (!token) executionResult = { done: false, error: 'Google Drive not connected.' }
+      else {
+        // Need existing parents to remove them
+        const cur = await fetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}?fields=parents`, { headers: { Authorization: `Bearer ${token}` } })
+        const curData = await cur.json()
+        const prevParents = (curData.parents ?? []).join(',')
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}?addParents=${meta.targetFolderId}&removeParents=${prevParents}`, {
+          method: 'PATCH', headers: { Authorization: `Bearer ${token}` },
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true, file_id: d.id } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    else if (actionType === 'rename_file') {
+      const token = await tokenFor(admin, clientId, ['drive'])
+      if (!token) executionResult = { done: false, error: 'Google Drive not connected.' }
+      else {
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: meta.newName }),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true, name: d.name } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    else if (actionType === 'delete_file') {
+      const token = await tokenFor(admin, clientId, ['drive'])
+      if (!token) executionResult = { done: false, error: 'Google Drive not connected.' }
+      else if (meta.permanently) {
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+        executionResult = res.ok || res.status === 204 ? { done: true, deleted: meta.fileId } : { done: false, error: await res.text() }
+      } else {
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}`, {
+          method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }),
+        })
+        executionResult = res.ok ? { done: true, trashed: meta.fileId } : { done: false, error: await res.text() }
+      }
+    }
+
+    else if (actionType === 'share_file' || actionType === 'set_permissions') {
+      const token = await tokenFor(admin, clientId, ['drive'])
+      if (!token) executionResult = { done: false, error: 'Google Drive not connected.' }
+      else {
+        const targets = actionType === 'share_file'
+          ? (meta.emailAddresses as string[] ?? []).map(email => ({ type: 'user', role: (meta.role as string) ?? 'reader', emailAddress: email }))
+          : [{ type: (meta.type as string) ?? 'anyone', role: (meta.role as string) ?? 'reader', ...(meta.value ? { emailAddress: meta.value } : {}) }]
+        let ok = 0, failed = 0; let lastErr: string | undefined
+        for (const perm of targets) {
+          const res = await fetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}/permissions?sendNotificationEmail=${meta.sendNotification ?? false}`, {
+            method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(perm),
+          })
+          if (res.ok) ok++; else { failed++; lastErr = (await res.json())?.error?.message }
+        }
+        executionResult = { done: failed === 0, shared: ok, failed, error: lastErr }
+      }
+    }
+
+    // ═══ Docs / Sheets / Slides (create via Drive mimeType) ════════════════════
+    else if (actionType === 'create_document' || actionType === 'create_sheet' || actionType === 'create_slide') {
+      const mimeType = actionType === 'create_document' ? 'application/vnd.google-apps.document'
+        : actionType === 'create_sheet' ? 'application/vnd.google-apps.spreadsheet'
+        : 'application/vnd.google-apps.presentation'
+      const platform = actionType === 'create_document' ? ['docs', 'drive'] : actionType === 'create_sheet' ? ['sheets', 'drive'] : ['slides', 'drive']
+      const token = await tokenFor(admin, clientId, platform)
+      if (!token) executionResult = { done: false, error: 'Google Drive not connected.' }
+      else {
+        const body: Record<string, unknown> = { name: meta.title, mimeType }
+        if (meta.parentFolderId) body.parents = [meta.parentFolderId]
+        const res = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,webViewLink', {
+          method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        })
+        const d = await res.json()
+        if (!res.ok) executionResult = { done: false, error: d.error?.message ?? JSON.stringify(d) }
+        else {
+          // Insert initial text for a doc, if provided
+          if (actionType === 'create_document' && meta.content) {
+            const docToken = await tokenFor(admin, clientId, ['docs', 'drive'])
+            await fetch(`https://docs.googleapis.com/v1/documents/${d.id}:batchUpdate`, {
+              method: 'POST', headers: { Authorization: `Bearer ${docToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ requests: [{ insertText: { location: { index: 1 }, text: meta.content } }] }),
+            })
+          }
+          executionResult = { done: true, file_id: d.id, link: d.webViewLink }
+        }
+      }
+    }
+
+    else if (actionType === 'update_document') {
+      const token = await tokenFor(admin, clientId, ['docs', 'drive'])
+      if (!token) executionResult = { done: false, error: 'Google Docs not connected.' }
+      else {
+        // Append text at end; for replace, caller should clear first (kept simple: append)
+        const doc = await fetch(`https://docs.googleapis.com/v1/documents/${meta.documentId}?fields=body(content(endIndex))`, { headers: { Authorization: `Bearer ${token}` } })
+        const docData = await doc.json()
+        const contentArr = docData.body?.content ?? []
+        const endIndex = contentArr.length ? (contentArr[contentArr.length - 1].endIndex ?? 1) - 1 : 1
+        const res = await fetch(`https://docs.googleapis.com/v1/documents/${meta.documentId}:batchUpdate`, {
+          method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requests: [{ insertText: { location: { index: Math.max(1, endIndex) }, text: `\n${meta.content}` } }] }),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    else if (actionType === 'update_sheet') {
+      const token = await tokenFor(admin, clientId, ['sheets', 'drive'])
+      if (!token) executionResult = { done: false, error: 'Google Sheets not connected.' }
+      else {
+        const range = (meta.sheetName ? `${meta.sheetName}!` : '') + ((meta.range as string) ?? 'A1')
+        const values = meta.values ?? []
+        const isAppend = meta.mode === 'append'
+        const url = isAppend
+          ? `https://sheets.googleapis.com/v4/spreadsheets/${meta.spreadsheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`
+          : `https://sheets.googleapis.com/v4/spreadsheets/${meta.spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`
+        const res = await fetch(url, {
+          method: isAppend ? 'POST' : 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values }),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true, updated: d.updates ?? d.updatedCells ?? true } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    else if (actionType === 'update_slide') {
+      const token = await tokenFor(admin, clientId, ['slides', 'drive'])
+      if (!token) executionResult = { done: false, error: 'Google Slides not connected.' }
+      else {
+        // Add a new slide (with optional title text box handled by Slides default layout)
+        const requests: Record<string, unknown>[] = [{ createSlide: {} }]
+        const res = await fetch(`https://slides.googleapis.com/v1/presentations/${meta.presentationId}:batchUpdate`, {
+          method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requests }),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true, note: 'Slide added. Text placement via Slides API is limited — refine in the editor.' } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    // ═══ Google Contacts ═══════════════════════════════════════════════════════
+    else if (actionType === 'create_contact') {
+      const token = await tokenFor(admin, clientId, ['contacts'])
+      if (!token) executionResult = { done: false, error: 'Google Contacts not connected.' }
+      else {
+        const person: Record<string, unknown> = {
+          names: [{ givenName: meta.givenName, familyName: meta.familyName }],
+        }
+        if (meta.email) person.emailAddresses = [{ value: meta.email }]
+        if (meta.phone) person.phoneNumbers = [{ value: meta.phone }]
+        if (meta.company || meta.jobTitle) person.organizations = [{ name: meta.company, title: meta.jobTitle }]
+        if (meta.notes) person.biographies = [{ value: meta.notes, contentType: 'TEXT_PLAIN' }]
+        const res = await fetch('https://people.googleapis.com/v1/people:createContact', {
+          method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(person),
+        })
+        const d = await res.json()
+        executionResult = res.ok ? { done: true, resource_name: d.resourceName } : { done: false, error: d.error?.message ?? JSON.stringify(d) }
+      }
+    }
+
+    else if (actionType === 'delete_contact') {
+      const token = await tokenFor(admin, clientId, ['contacts'])
+      if (!token) executionResult = { done: false, error: 'Google Contacts not connected.' }
+      else {
+        const res = await fetch(`https://people.googleapis.com/v1/${meta.resourceName}:deleteContact`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+        executionResult = res.ok ? { done: true } : { done: false, error: await res.text() }
+      }
     }
 
     // Honest fallback — an action type with no executor must say so, loudly,

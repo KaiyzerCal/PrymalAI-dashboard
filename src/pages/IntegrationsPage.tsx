@@ -99,6 +99,7 @@ const GOOGLE_SCOPES: Record<string, string[]> = {
   gmail: [
     'https://www.googleapis.com/auth/gmail.modify',
     'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/gmail.settings.basic',
   ],
   calendar: ['https://www.googleapis.com/auth/calendar'],
   tasks: ['https://www.googleapis.com/auth/tasks'],
