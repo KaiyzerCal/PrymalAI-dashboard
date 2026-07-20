@@ -3835,7 +3835,8 @@ async function runGeminiLoop(
   channel: string = 'web'
 ): Promise<string> {
   const availableTools = filterToolsByPlan(TOOLS, clientPlan)
-  const functionDeclarations = availableTools.map(t => ({
+  const geminiSafeTools = channel === 'automation' ? availableTools.filter(t => t.name !== 'resolve_pending_action') : availableTools
+  const functionDeclarations = geminiSafeTools.map(t => ({
     name: t.name,
     description: t.description,
     parameters: t.input_schema,
@@ -3963,13 +3964,15 @@ async function runHaikuLoop(
   // External apps via Composio (feature-flagged; [] when off)
   const composioTools = await getComposioTools(clientId)
   const allTools = [...availableTools, ...composioTools]
+  // Unattended runs must never self-approve queued actions (prompt-injection guard)
+  const loopTools = channel === 'automation' ? allTools.filter(t => t.name !== 'resolve_pending_action') : allTools
 
   while (true) {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
       system: buildSystemPrompt(clientPlan, channel),
-      tools: allTools,
+      tools: loopTools,
       messages,
     })
 

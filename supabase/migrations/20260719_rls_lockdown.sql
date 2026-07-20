@@ -46,3 +46,21 @@ drop policy if exists allow_all_oauth on prymal_oauth_tokens;
 alter table prymal_api_keys enable row level security;
 drop policy if exists allow_all_select on prymal_api_keys;
 drop policy if exists allow_all_api_keys on prymal_api_keys;
+
+-- Audit follow-up: remaining tables referenced by functions
+alter table if exists prymal_gmb_reviews enable row level security;
+drop policy if exists allow_all_select on prymal_gmb_reviews;
+drop policy if exists allow_all_gmb on prymal_gmb_reviews;
+create policy own_gmb_reviews_select on prymal_gmb_reviews
+  for select using (client_id in (select id from prymal_clients where user_id = auth.uid()));
+
+alter table if exists prymal_social_posts enable row level security;
+drop policy if exists allow_all_select on prymal_social_posts;
+drop policy if exists allow_all_social on prymal_social_posts;
+create policy own_social_posts_select on prymal_social_posts
+  for select using (client_id in (select id from prymal_clients where user_id = auth.uid()));
+
+-- social account tokens: service role only
+alter table if exists prymal_social_accounts enable row level security;
+drop policy if exists allow_all_select on prymal_social_accounts;
+drop policy if exists allow_all_social_accounts on prymal_social_accounts;
