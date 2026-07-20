@@ -1,0 +1,142 @@
+/* Alfy design system — askalfy.com brand tokens (see AskAlfy design constitution) */
+@import '@fontsource-variable/fraunces/wght.css';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+
+.alfy {
+	--linen: #faf5ec;
+	--card: #fffdf8;
+	--hairline: #e7dfd0;
+	--espresso: #2e2a24;
+	--secondary: #5c554a;
+	--muted: #8a7f6e;
+	--marigold: #e08a2e;
+	--marigold-hover: #c97923;
+	--fern: #4e7d68;
+	--fern-tint: #edf3ef;
+
+	font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+	background: var(--linen);
+	color: var(--espresso);
+	min-height: 100dvh;
+	font-size: 16px;
+	line-height: 1.5;
+}
+.alfy *,
+.alfy *::before,
+.alfy *::after {
+	box-sizing: border-box;
+}
+.alfy .display {
+	font-family: 'Fraunces Variable', ui-serif, Georgia, serif;
+	font-weight: 600;
+}
+.alfy .h2 {
+	font-family: 'Fraunces Variable', ui-serif, Georgia, serif;
+	font-weight: 500;
+	font-size: 1.25rem;
+	line-height: 1.3;
+	margin: 0;
+}
+.alfy .label {
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	font-size: 0.6875rem;
+	font-weight: 500;
+	color: var(--muted);
+}
+.alfy .card {
+	background: var(--card);
+	border: 1px solid var(--hairline);
+	border-radius: 1.5rem;
+	padding: 1.5rem;
+	box-shadow: 0 8px 30px -12px rgba(46, 42, 36, 0.12);
+}
+.alfy .btn {
+	cursor: pointer;
+	border: none;
+	border-radius: 9999px;
+	min-height: 2.75rem;
+	padding: 0 1.25rem;
+	font: inherit;
+	font-size: 0.8125rem;
+	font-weight: 500;
+	transition: background-color 0.15s, transform 0.12s, color 0.15s;
+}
+.alfy .btn:active {
+	transform: scale(0.97);
+}
+.alfy .btn-primary {
+	background: var(--marigold);
+	color: var(--espresso);
+}
+.alfy .btn-primary:hover {
+	background: var(--marigold-hover);
+}
+.alfy .btn-outline {
+	background: transparent;
+	border: 1px solid var(--hairline);
+	color: var(--espresso);
+}
+.alfy .btn-outline:hover {
+	background: var(--linen);
+}
+.alfy .btn-ghost {
+	background: transparent;
+	color: var(--secondary);
+}
+.alfy .btn-ghost:hover {
+	background: var(--linen);
+}
+.alfy .btn-fern {
+	background: var(--fern);
+	color: #fff;
+}
+.alfy .btn[disabled] {
+	opacity: 0.6;
+	cursor: default;
+	transform: none;
+}
+.alfy .tab {
+	cursor: pointer;
+	background: none;
+	border: none;
+	padding: 0.625rem 1rem;
+	font: inherit;
+	font-size: 0.8125rem;
+	font-weight: 500;
+	color: var(--secondary);
+	border-bottom: 2px solid transparent;
+	margin-bottom: -1px;
+}
+.alfy .tab:hover {
+	color: var(--espresso);
+}
+.alfy .tab.active {
+	color: var(--espresso);
+	border-bottom-color: var(--marigold);
+}
+.alfy .check {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.25rem;
+	height: 1.25rem;
+	border-radius: 9999px;
+	background: var(--fern-tint);
+	color: var(--fern);
+	flex-shrink: 0;
+}
+.alfy input,
+.alfy textarea {
+	font: inherit;
+	color: var(--espresso);
+	background: var(--linen);
+	border: 1px solid var(--hairline);
+	border-radius: 1rem;
+	padding: 0.75rem 1rem;
+	width: 100%;
+}
+.alfy a {
+	color: var(--fern);
+}

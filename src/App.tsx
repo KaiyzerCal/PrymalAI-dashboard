@@ -8,6 +8,7 @@ import { LoginPage } from '@/pages/LoginPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { AgentPage } from '@/pages/AgentPage'
 import { ApprovalQueuePage } from '@/pages/ApprovalQueuePage'
+import { RelationshipsPage } from '@/pages/RelationshipsPage'
 import { IntegrationsPage } from '@/pages/IntegrationsPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { GoogleCallbackPage } from '@/pages/GoogleCallbackPage'
@@ -16,6 +17,7 @@ import { AdminPage } from '@/pages/AdminPage'
 import { AdminClientPage } from '@/pages/AdminClientPage'
 import { LandingPage } from '@/pages/LandingPage'
 import { UpgradePage } from '@/pages/UpgradePage'
+import { AlfyApp } from '@/alfy/AlfyApp'
 import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage'
 import { TermsOfServicePage } from '@/pages/TermsOfServicePage'
 import { SecurityPolicyPage } from '@/pages/SecurityPolicyPage'
@@ -101,6 +103,12 @@ export default function App() {
             <UpgradePage />
           </AuthGuardSession>
         } />
+        <Route path="/alfy" element={<Navigate to="/alfy/today" replace />} />
+        <Route path="/alfy/:tab" element={
+          <AuthGuardSession>
+            <AlfyApp />
+          </AuthGuardSession>
+        } />
         <Route path="/dashboard"
           element={
             <AuthGuard>
@@ -111,6 +119,7 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="agents/:id" element={<AgentPage />} />
           <Route path="approvals" element={<ApprovalQueuePage />} />
+          <Route path="relationships" element={<RelationshipsPage />} />
           <Route path="settings" element={<IntegrationsPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="admin/clients/:id" element={<AdminClientPage />} />

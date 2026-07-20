@@ -1,4 +1,5 @@
 import Stripe from 'npm:stripe'
+import { corsHeaders } from '../_shared/cors.ts'
 import { createClient } from 'npm:@supabase/supabase-js'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -6,7 +7,7 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY')!
 const STRIPE_PUBLISHABLE_KEY = Deno.env.get('STRIPE_PUBLISHABLE_KEY')!
 
-const CORS = {
+const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -28,6 +29,7 @@ const TIER_PRODUCTS: Record<string, { productId: string; priceId: string; name: 
 const TRIAL_UPGRADE_COUPON = 'TRIAL_CREDIT_5'
 
 Deno.serve(async (req) => {
+  Object.assign(CORS, corsHeaders(req))
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: CORS })
   }

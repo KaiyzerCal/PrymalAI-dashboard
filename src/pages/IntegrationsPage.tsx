@@ -4,6 +4,7 @@ import { useClient } from '@/hooks/useClient'
 import { useAdmin } from '@/hooks/useAdmin'
 import { CheckCircle, Globe, ChevronDown, CreditCard, Zap, Mail, Calendar, HardDrive, Edit2, Lock, Video } from 'lucide-react'
 import { supabase, FUNCTION_BASE } from '@/lib/supabase'
+import { TextAlfyCard } from '@/components/TextAlfyCard'
 import { TIER_CONFIGS, planAtLeast, type TierLevel } from '@/lib/tierConfig'
 
 type Tab = 'brand' | 'integrations' | 'billing' | 'account'
@@ -1620,6 +1621,9 @@ export function IntegrationsPage() {
               )}
             </IntegrationCard>
           </TierSection>
+
+          {/* ── Text Alfy (SMS channel) ── */}
+          <TextAlfyCard />
 
           {/* ── AI Engine (admin override only) ── */}
           {isAdmin && <IntegrationCard

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, CheckSquare, Settings, LogOut, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, Settings, LogOut, ShieldCheck, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { AGENTS } from '@/lib/agents'
 import { useAdmin } from '@/hooks/useAdmin'
@@ -133,6 +133,7 @@ export function Sidebar() {
 
         {[
           { to: '/dashboard/approvals', icon: CheckSquare, label: 'ALL APPROVALS' },
+          { to: '/dashboard/relationships', icon: Users, label: 'RELATIONSHIPS' },
           { to: '/dashboard/settings', icon: Settings, label: 'SETTINGS' },
         ].map(({ to, icon: Icon, label }) => (
           <NavLink

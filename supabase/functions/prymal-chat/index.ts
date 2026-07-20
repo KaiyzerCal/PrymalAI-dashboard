@@ -1,4 +1,6 @@
 import Anthropic from 'npm:@anthropic-ai/sdk'
+import { corsHeaders } from '../_shared/cors.ts'
+import { getComposioTools, isComposioTool, executeComposioTool } from '../_shared/composio.ts'
 import { createClient } from 'npm:@supabase/supabase-js'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -9,7 +11,7 @@ const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
 const PLATFORM_ANTHROPIC_KEY = Deno.env.get('Anthropic_api_key') ?? ''
 const PLATFORM_GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? ''
 
-const CORS = {
+const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -34,18 +36,89 @@ function filterToolsByPlan(tools: Anthropic.Tool[], clientPlan: string): Anthrop
     const keep = !tierTag || tierTag === 'all plans' || planAtLeast(clientPlan, tierTag)
     return keep
   })
-  console.log('[DEBUG] Tool filtering:', {
-    clientPlan,
-    totalTools: tools.length,
-    filteredTools: filtered.length,
-    planRank: PLAN_RANK[clientPlan] ?? 'unknown'
-  })
   return filtered
 }
 
-const SYSTEM_PROMPT = `You are Prymal — an autonomous AI Google Agent managing a client's full Google workspace and online presence.
+// ponytail: in-memory per-isolate rate limit — durable per-client quotas if abuse appears
+const RATE_WINDOW_MS = 60 * 60 * 1000
+const RATE_MAX = 60
+const rateBuckets = new Map<string, number[]>()
+function rateLimited(clientId: string): boolean {
+  const now = Date.now()
+  const hits = (rateBuckets.get(clientId) ?? []).filter(t => now - t < RATE_WINDOW_MS)
+  if (hits.length >= RATE_MAX) { rateBuckets.set(clientId, hits); return true }
+  hits.push(now)
+  rateBuckets.set(clientId, hits)
+  return false
+}
 
-CAPABILITIES BY TIER:
+function buildSystemPrompt(clientPlan: string, channel: string = 'web'): string {
+  const planLabels: Record<string, string> = {
+    free: 'Free (no paid features — cannot access any Google tools)',
+    trial: 'Trial ($5 trial — access to all tools for testing, limited to 75 total actions)',
+    tier1: 'Tier 1 ($17/mo — Gmail only)',
+    tier2: 'Tier 2 ($47/mo — Gmail + Calendar + Tasks)',
+    tier3: 'Tier 3 ($97/mo — Gmail + Calendar + Tasks + Drive + Docs + Sheets + Slides + Forms + Keep)',
+    tier4: 'Tier 4 ($147/mo — Full Access: everything in Tier 3 + Meet + Contacts + Photos + Business Profile)',
+  }
+  const currentPlanLabel = planLabels[clientPlan] ?? `Unknown plan: ${clientPlan}`
+
+  return `You are Alfy — the client's personal AI assistant on the Prymal AI platform. You manage their full Google workspace and online presence, and you act like a sharp, capable chief of staff: warm, direct, proactive, never robotic.
+
+CURRENT USER PLAN: ${currentPlanLabel}
+
+IMPORTANT: Only tell the user about features their current plan includes. If they ask about a feature they don't have access to, tell them which plan they need to upgrade to and direct them to Settings → Billing. Never describe paid features as available to a free or trial user unless they are on that plan.
+
+RELATIONSHIP MEMORY (all plans):
+- You have persistent memory about the people the client works with. Use remember_contact to save what you learn (who someone is, what's in flight, commitments made) whenever you read email threads, prep meetings, or the client tells you about someone. Rewrite the context_summary to stay current — don't let it go stale.
+- Use recall_contacts to answer "what's the status with X?", "who do I know at Y?", or "who haven't I talked to lately?" (use stale_days for reconnection suggestions).
+
+PROACTIVE HABITS:
+- MORNING BRIEF: When the client asks "what's my day look like", "catch me up", "morning brief", or similar — compose a single tight brief: unread/important emails (get_emails "is:unread"), today's calendar (get_calendar_events, if plan allows), tasks due (list_tasks, if plan allows), and threads waiting on replies (find_followups_needed). Lead with what needs action. Keep it scannable.
+- FOLLOW-UPS: When reviewing email or giving a brief, surface threads the client is waiting on with find_followups_needed and offer to draft the nudge (queue via queue_action — never send directly).
+- MEETING PREP: Before meetings, or on request, use meeting_prep and deliver a short per-meeting brief: who's attending, what you know about them, latest email context, anything owed.
+- After any meaningful interaction with a person's emails or events, quietly update relationship memory. Don't announce it every time.
+- EARNED AUTONOMY: When you notice the client has approved the same kind of action several times without edits (check get_agent_activity), offer once — plainly — to handle that kind of thing without asking, e.g. "That's five calendar replies you've approved without changes — want me to just handle those from now on?" If they say yes, save it as a standing instruction and remind them they can take it back any time. Never offer twice for the same thing after a no.
+- STANDING INSTRUCTIONS: When the client states an ongoing goal ("never let me miss a birthday", "always flag unpaid invoices", "check in on cold leads weekly"), save it with create_standing_instruction — Alfy re-checks these automatically on schedule. When you learn a birthday, save it on the contact with remember_contact.
+
+FIRST CONTACT — the first ten minutes must produce a catch:
+- If the conversation history is empty or this is clearly a new client, don't introduce yourself at length. Greet in one line, then immediately go find ONE true, useful thing they'd forgotten or missed — an unanswered thread (find_followups_needed), an unconfirmed appointment, an upcoming birthday, a bill date. Deliver it plainly and offer to handle it. That first catch is the whole first impression.
+- If no accounts are connected yet, ask for the one thing you need to produce the first catch, not a setup checklist.
+
+INVITES:
+- When the client asks to invite someone ("invite Sam", "tell my sister about you"), use invite_friend. The invite text goes out only after their yes, like everything else. Never suggest inviting people unprompted.
+
+REAL-WORLD ERRANDS — bookings, reservations, appointments, bills, travel:
+- You handle these by doing the legwork, then queueing the decisive step for approval. Never claim a booking is confirmed until the counterparty confirms.
+- RESERVATIONS & APPOINTMENTS (restaurants, doctors, salons, services): find the details from email history, contacts, or connected search tools. Draft the request email via queue_action (action_type 'book_appointment' or 'book_reservation', metadata.to = the venue's email). Offer 2-3 time slots that fit the client's calendar, and hold the slot on their calendar. When the venue replies, confirm the event and tell the client.
+- BILLS: track due dates as standing instructions and remind before they're due. If the biller accepts email contact, draft the message via queue_action ('pay_bill'). Never move money yourself — prepare everything so the client's yes is the only remaining step, and say plainly what you could and couldn't do.
+- FLIGHTS & TRAVEL: when search tools are connected, search real options and present the 2-3 best with concrete prices and times. Book by queueing the decisive step for approval ('book_flight', all details in metadata). Without search tools, say so honestly and offer the draft-a-request route instead.
+- Always sanity-check dates and times against the client's calendar before proposing anything.
+
+TONE — sound like a person, not a chatbot:
+- No signposting ("Here's what I found:", "Great question!"). Just say the thing.
+- No chatbot sign-offs ("Let me know if you need anything else!", "Hope that helps!"). End when you're done.
+- Don't force lists of three or bullet-point everything. Use however many points are actually true, in prose when prose reads better.
+- Don't bold half the message. Bold at most the one thing that matters, usually nothing.
+- Don't hedge on things you already know. "3pm works" — not "Based on your calendar, it looks like 3pm could potentially work." If you checked, state it.
+${channel === 'sms' ? `
+SMS MODE — you are talking over text message:
+- Keep replies SHORT. Under 500 characters whenever possible. No markdown, no headers, no bullets with asterisks — plain text with simple dashes.
+- One thing at a time. If there's a lot to report, give the top 2-3 items and offer "reply MORE for the rest".
+- For approvals: describe the queued action in one line and say "Reply YES to approve or NO to skip." When the user replies YES, approve the most recent pending action.
+- Never send long documents or full email bodies over SMS — summarize and mention the dashboard for detail.
+- Text like a sharp friend: lowercase-casual is fine, but never sloppy about facts, names, or numbers.
+` : ''}${channel === 'automation' ? `
+AUTOMATION MODE — this is a scheduled background check. No human is reading this conversation live.
+- You are re-checking a standing instruction the client gave earlier. Use tools to look at the current state (contacts, calendar, memory, email) and decide whether action is needed TODAY.
+- If nothing needs doing right now, reply with exactly: NO_ACTION
+- If something needs doing, take it: anything external goes through queue_action for approval as always; internal things (calendar events for the client themselves, memory updates) you may do directly.
+- Finish with one short line describing what you did, so it can be logged.
+` : ''}
+${SYSTEM_CAPABILITIES}`
+}
+
+const SYSTEM_CAPABILITIES = `CAPABILITIES BY TIER:
 - Free ($0/mo): Dashboard & profile setup only (no agent access)
 
 - Tier 1 ($17/mo) — EMAIL MASTERY: Gmail
@@ -80,7 +153,7 @@ CAPABILITIES BY TIER:
   ✓ Photo intelligence: Detect duplicate photos, smart organization
   ✓ All Tier 3 capabilities
 
-AI ENGINE: Uses the client's Anthropic (Claude Haiku) key as primary. Falls back to Gemini if Anthropic is unavailable.
+AI ENGINE: Runs on platform-managed keys (Claude Haiku primary, Gemini fallback). Clients never need their own API key.
 
 RULES — never break these:
 1. Never post, send, or create anything externally without going through queue_action first. The client approves everything in the dashboard before it goes out.
@@ -106,7 +179,6 @@ async function getFreshToken(
   platform: string
 ): Promise<string | null> {
   try {
-    console.log(`[DEBUG] getFreshToken START: clientId=${clientId}, platform=${platform}`)
 
     const { data, error } = await supabase
       .from('prymal_oauth_tokens')
@@ -115,7 +187,6 @@ async function getFreshToken(
       .eq('platform', platform)
       .single()
 
-    console.log(`[DEBUG] getFreshToken QUERY: data exists=${!!data}, error=${error ? error.message : 'none'}`)
 
     if (error) {
       console.warn(`[WARN] getFreshToken query error: ${error.message}`)
@@ -127,11 +198,9 @@ async function getFreshToken(
       return null
     }
 
-    console.log(`[DEBUG] getFreshToken found token, expires_at=${data.expires_at}`)
 
     const expiresAt = data.expires_at ? new Date(data.expires_at).getTime() : 0
     if (Date.now() < expiresAt - 60000) {
-      console.log(`[DEBUG] getFreshToken: Token still valid`)
       return data.access_token
     }
 
@@ -140,7 +209,6 @@ async function getFreshToken(
       return null
     }
 
-    console.log(`[DEBUG] getFreshToken: Token expired, refreshing...`)
     const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -152,7 +220,6 @@ async function getFreshToken(
       }),
     })
     const tokens = await res.json()
-    console.log(`[DEBUG] getFreshToken: Refresh response - ${tokens.access_token ? 'SUCCESS' : 'FAILED'}`)
     if (!tokens.access_token) return null
 
     await supabase.from('prymal_oauth_tokens').update({
@@ -187,6 +254,31 @@ const TOOLS: Anthropic.Tool[] = [
     }
   },
   {
+    name: 'resolve_pending_action',
+    description: 'Approve (execute) or reject a pending action from the approval queue. Use when the client says YES/approve or NO/skip to a queued action. Defaults to the most recent pending action if no id given.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        decision: { type: 'string', description: "'approve' or 'reject'" },
+        approval_id: { type: 'string', description: 'Specific approval row id. Omit to act on the most recent pending action.' },
+        edited_content: { type: 'string', description: 'If the client asked for a change, the revised content to send instead of the draft.' }
+      },
+      required: ['decision']
+    }
+  },
+  {
+    name: 'invite_friend',
+    description: 'Invite someone to Alfy by text, when the client asks to. Queues the invite text for approval first — it only sends after their yes.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: "The friend's first name" },
+        phone: { type: 'string', description: 'Their mobile number, E.164 like +15551234567' }
+      },
+      required: ['name', 'phone']
+    }
+  },
+  {
     name: 'get_agent_activity',
     description: 'Get history of approved or rejected actions.',
     input_schema: {
@@ -200,10 +292,11 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        action_type: { type: 'string', description: 'e.g. respond_to_review, send_email, create_event, drive_report' },
+        action_type: { type: 'string', description: 'e.g. respond_to_review, send_email, create_event, drive_report, book_reservation, book_appointment, book_flight, pay_bill' },
         summary: { type: 'string', description: 'Short title for the approval card' },
         draft_content: { type: 'string', description: 'Full content the client will review' },
-        metadata: { type: 'object', description: 'Extra context. For send_email: always include "to" (recipient email address) and "subject". For review responses: review_id. For events: start, end, title, attendees.' }
+        metadata: { type: 'object', description: 'Extra context. For send_email: always include "to" (recipient email address) and "subject". For review responses: review_id. For events: start, end, title, attendees.' },
+        batch_id: { type: 'string', description: 'When one request produces several related actions (e.g. 5 tickets + a summary post), give them all the same short batch_id so the client can approve them together as one card.' }
       },
       required: ['action_type', 'summary', 'draft_content']
     }
@@ -216,6 +309,87 @@ const TOOLS: Anthropic.Tool[] = [
       properties: {
         brand_tone: { type: 'string' },
         knowledge_base: { type: 'string' }
+      }
+    }
+  },
+
+  // ── All plans : Relationship memory (Alfy) ──
+  {
+    name: 'remember_contact',
+    description: 'Save or update relationship memory for a contact. Call this whenever you learn something meaningful about a person — after reading email threads, scheduling meetings, or when the client tells you about someone. Merge new context with what you already know.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        contact_email: { type: 'string', description: 'The contact\'s email address (unique key)' },
+        contact_name: { type: 'string' },
+        company: { type: 'string' },
+        context_summary: { type: 'string', description: 'What you know: who they are, current threads, commitments, preferences. Keep it current — rewrite, don\'t append endlessly.' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'e.g. ["client", "investor", "new-york", "fitness"]' },
+        last_interaction: { type: 'string', description: 'ISO date of the most recent interaction, if known' },
+        birthday: { type: 'string', description: 'Birthday if known, e.g. "March 3" or "1990-03-03". Year optional.' }
+      },
+      required: ['contact_email', 'context_summary']
+    }
+  },
+  {
+    name: 'create_standing_instruction',
+    description: 'Save a standing instruction — an ongoing goal Alfy re-checks automatically on a schedule (e.g. "never let me miss a birthday", "remind me to follow up with cold leads weekly", "keep an eye on invoices that go unpaid"). Store the goal in the client\'s own words.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        goal_text: { type: 'string', description: 'The ongoing goal, phrased as the client stated it' },
+        cadence: { type: 'string', enum: ['hourly', 'daily', 'weekly'], description: 'How often to re-check. Default daily.' }
+      },
+      required: ['goal_text']
+    }
+  },
+  {
+    name: 'list_standing_instructions',
+    description: 'List the client\'s active standing instructions and when each last ran.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'cancel_standing_instruction',
+    description: 'Cancel a standing instruction by id (get ids from list_standing_instructions).',
+    input_schema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id']
+    }
+  },
+  {
+    name: 'recall_contacts',
+    description: 'Search relationship memory. Use for "what\'s the status with X?", "who do I know at Y?", "who haven\'t I spoken to in a while?". Searches name, email, company, and context.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Free-text search across name, email, company, and context summary' },
+        tag: { type: 'string', description: 'Filter by a single tag' },
+        stale_days: { type: 'number', description: 'Only return contacts with no interaction in this many days (for reconnection suggestions)' },
+        limit: { type: 'number', default: 10 }
+      }
+    }
+  },
+  {
+    name: 'find_followups_needed',
+    description: '[Tier 1+] Scan sent Gmail for threads where the client sent the last message and never received a reply. Use for proactive follow-up suggestions and the morning brief.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        days_back: { type: 'number', default: 14, description: 'How far back to scan sent mail' },
+        min_age_days: { type: 'number', default: 3, description: 'Only flag threads where the unanswered message is at least this old' },
+        maxThreads: { type: 'number', default: 15 }
+      }
+    }
+  },
+  {
+    name: 'meeting_prep',
+    description: '[Tier 2+] Build a prep brief for upcoming meetings: pulls calendar events, recent email history with each attendee, and relationship memory. Use when the client asks to prep for a meeting or as part of the morning brief.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        hours_ahead: { type: 'number', default: 48, description: 'Look-ahead window for events' },
+        event_id: { type: 'string', description: 'Prep a single specific event instead' }
       }
     }
   },
@@ -1176,7 +1350,36 @@ const TOOLS: Anthropic.Tool[] = [
 
 // ── Tool handlers ─────────────────────────────────────────────────────────────
 
+// Logging wrapper: every tool call lands in prymal_agent_log for replay/debugging.
 async function handleTool(
+  toolName: string,
+  input: Record<string, unknown>,
+  supabase: ReturnType<typeof createClient>,
+  clientId: string,
+  clientPlan: string,
+  channel: string = 'web'
+): Promise<unknown> {
+  const started = Date.now()
+  let ok = true
+  let result: unknown
+  try {
+    result = await handleToolInner(toolName, input, supabase, clientId, clientPlan)
+  } catch (err) {
+    ok = false
+    result = { error: String(err) }
+    throw err
+  } finally {
+    // fire-and-forget; logging must never break the loop
+    supabase.from('prymal_agent_log').insert({
+      client_id: clientId, channel, tool_name: toolName,
+      input, result: ok ? result : { error: String(result) },
+      ok, duration_ms: Date.now() - started,
+    }).then(() => {}, () => {})
+  }
+  return result
+}
+
+async function handleToolInner(
   toolName: string,
   input: Record<string, unknown>,
   supabase: ReturnType<typeof createClient>,
@@ -1189,6 +1392,12 @@ async function handleTool(
     if (!planAtLeast(clientPlan, plan)) {
       throw new Error(`${feature} requires the ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan. Your current plan is ${clientPlan}. Upgrade in Settings → Billing.`)
     }
+  }
+
+  // External app tools (Composio) route outside the switch
+  if (isComposioTool(toolName)) {
+    try { return await executeComposioTool(clientId, toolName, input) }
+    catch (err) { return { error: 'Connected app call failed: ' + String(err) } }
   }
 
   switch (toolName) {
@@ -1227,6 +1436,56 @@ async function handleTool(
       return { count: data?.length ?? 0, items: data ?? [] }
     }
 
+    case 'resolve_pending_action': {
+      let approvalId = input.approval_id as string | undefined
+      if (!approvalId) {
+        const { data: latest } = await supabase
+          .from('prymal_approval_queue')
+          .select('id')
+          .eq('client_id', clientId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (!latest) return { error: 'No pending actions to resolve.' }
+        approvalId = latest.id
+      }
+      const decision = String(input.decision ?? '').toLowerCase()
+      const reply_text = decision === 'reject' || decision === 'no' || decision === 'skip'
+        ? 'REJECT'
+        : input.edited_content
+          ? `EDIT ${input.edited_content}`
+          : 'APPROVE'
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/prymal-approval-flow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-key': Deno.env.get('INTERNAL_FUNCTION_SECRET') ?? '',
+        },
+        body: JSON.stringify({ client_id: clientId, approval_id: approvalId, reply_text }),
+      })
+      const data = await res.json()
+      if (!res.ok) return { error: data.error ?? 'Approval execution failed.' }
+      return data
+    }
+
+    case 'invite_friend': {
+      const phone = String(input.phone ?? '').replace(/[^+d]/g, '')
+      if (!/^+?d{10,15}$/.test(phone)) return { error: 'That number doesn't look right — need it like +15551234567.' }
+      const friend = String(input.name ?? 'your friend')
+      const draft = `Hi ${friend} — a friend of yours uses Alfy, an assistant you just text. It handles the stuff you keep meaning to do, and nothing sends without your OK. Save this number and say hi. — A`
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId, agent: 'google', action_type: 'invite_friend',
+          summary: `Invite ${friend} to Alfy`, draft_content: draft,
+          metadata: { to_phone: phone, name: friend }, status: 'pending',
+        })
+        .select().single()
+      if (error) throw new Error(error.message)
+      return { queued: true, approval_id: data.id, note: 'Invite queued — sends after the client approves.' }
+    }
+
     case 'get_agent_activity': {
       const { data, error } = await supabase
         .from('prymal_approval_queue')
@@ -1251,6 +1510,7 @@ async function handleTool(
           draft_content: input.draft_content,
           status: 'pending',
           metadata: input.metadata ?? null,
+          batch_id: input.batch_id ?? null,
         })
         .select('id')
         .single()
@@ -1265,6 +1525,230 @@ async function handleTool(
       const { error } = await supabase.from('prymal_clients').update(updates).eq('id', clientId)
       if (error) throw new Error(error.message)
       return { updated: true, fields: Object.keys(updates) }
+    }
+
+    // ── All plans : Relationship memory (Alfy) ──
+
+    case 'remember_contact': {
+      const email = (input.contact_email as string ?? '').trim().toLowerCase()
+      if (!email) return { error: 'contact_email is required' }
+      const row: Record<string, unknown> = {
+        client_id: clientId,
+        contact_email: email,
+        context_summary: input.context_summary ?? null,
+        updated_at: new Date().toISOString(),
+      }
+      if (input.contact_name !== undefined) row.contact_name = input.contact_name
+      if (input.company !== undefined) row.company = input.company
+      if (input.tags !== undefined) row.tags = input.tags
+      if (input.last_interaction !== undefined) row.last_interaction = input.last_interaction
+      if (input.birthday !== undefined) row.birthday = input.birthday
+      const { error } = await supabase
+        .from('prymal_contact_memory')
+        .upsert(row, { onConflict: 'client_id,contact_email' })
+      if (error) return { error: error.message }
+      return { saved: true, contact_email: email }
+    }
+
+    case 'create_standing_instruction': {
+      const goal = (input.goal_text as string ?? '').trim()
+      if (!goal) return { error: 'goal_text is required' }
+      const cadence = ['hourly', 'daily', 'weekly'].includes(input.cadence as string) ? input.cadence : 'daily'
+      const { data, error } = await supabase
+        .from('prymal_standing_instructions')
+        .insert({ client_id: clientId, goal_text: goal, trigger_config: { cadence } })
+        .select('id')
+        .single()
+      if (error) return { error: error.message }
+      return { created: true, id: data.id, cadence, message: `Standing instruction saved — Alfy will check on this ${cadence}.` }
+    }
+
+    case 'list_standing_instructions': {
+      const { data, error } = await supabase
+        .from('prymal_standing_instructions')
+        .select('id, goal_text, trigger_config, status, last_run_at, last_result, created_at')
+        .eq('client_id', clientId)
+        .neq('status', 'cancelled')
+        .order('created_at', { ascending: false })
+      if (error) return { error: error.message }
+      return { count: data?.length ?? 0, instructions: data ?? [] }
+    }
+
+    case 'cancel_standing_instruction': {
+      const { error } = await supabase
+        .from('prymal_standing_instructions')
+        .update({ status: 'cancelled' })
+        .eq('id', input.id)
+        .eq('client_id', clientId)
+      if (error) return { error: error.message }
+      return { cancelled: true }
+    }
+
+    case 'recall_contacts': {
+      let q = supabase
+        .from('prymal_contact_memory')
+        .select('contact_email, contact_name, company, context_summary, tags, last_interaction, updated_at')
+        .eq('client_id', clientId)
+      if (input.query) {
+        const term = `%${input.query}%`
+        q = q.or(`contact_name.ilike.${term},contact_email.ilike.${term},company.ilike.${term},context_summary.ilike.${term}`)
+      }
+      if (input.tag) q = q.contains('tags', [input.tag])
+      if (input.stale_days) {
+        const cutoff = new Date(Date.now() - (input.stale_days as number) * 86400000).toISOString()
+        q = q.lt('last_interaction', cutoff)
+      }
+      const { data, error } = await q.order('updated_at', { ascending: false }).limit((input.limit as number) ?? 10)
+      if (error) return { error: error.message }
+      if (!data?.length) return { count: 0, contacts: [], message: 'No contacts found in memory matching that. Memory builds up as you work — use remember_contact when you learn about people.' }
+      return { count: data.length, contacts: data }
+    }
+
+    case 'find_followups_needed': {
+      requirePlan('tier1', 'Gmail')
+      const token = await getFreshToken(supabase, clientId, 'gmail')
+      if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
+
+      // Whose address is this inbox?
+      const profRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const profile = await profRes.json()
+      const myEmail = (profile.emailAddress ?? '').toLowerCase()
+
+      const daysBack = (input.days_back as number) ?? 14
+      const minAgeDays = (input.min_age_days as number) ?? 3
+      const maxThreads = Math.min((input.maxThreads as number) ?? 15, 25)
+
+      const listRes = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/threads?q=${encodeURIComponent(`in:sent -in:chats newer_than:${daysBack}d`)}&maxResults=${maxThreads}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const listData = await listRes.json()
+      if (listData.error) return { error: listData.error.message ?? JSON.stringify(listData.error) }
+      if (!listData.threads?.length) return { count: 0, followups: [], message: 'No sent threads found in that window.' }
+
+      const cutoffMs = Date.now() - minAgeDays * 86400000
+      const followups: Record<string, unknown>[] = []
+
+      for (const t of listData.threads.slice(0, maxThreads)) {
+        const thRes = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        const th = await thRes.json()
+        const msgs = th.messages ?? []
+        if (!msgs.length) continue
+        const last = msgs[msgs.length - 1]
+        const headers: Record<string, string> = {}
+        for (const h of last.payload?.headers ?? []) headers[h.name] = h.value
+        const lastFrom = (headers['From'] ?? '').toLowerCase()
+        const lastDate = Number(last.internalDate ?? 0)
+        // Flag only if the LAST message in the thread was sent by the user and it's old enough
+        if (myEmail && lastFrom.includes(myEmail) && lastDate > 0 && lastDate < cutoffMs) {
+          followups.push({
+            threadId: t.id,
+            subject: headers['Subject'] ?? '(no subject)',
+            to: headers['To'] ?? '',
+            sentDate: headers['Date'] ?? '',
+            daysWaiting: Math.floor((Date.now() - lastDate) / 86400000),
+            snippet: (last.snippet ?? '').slice(0, 150),
+          })
+        }
+      }
+
+      followups.sort((a, b) => (b.daysWaiting as number) - (a.daysWaiting as number))
+      return { count: followups.length, followups, message: followups.length ? 'These threads are waiting on a reply. Offer to draft follow-ups (queue via queue_action).' : 'Nothing waiting on a reply — inbox is in good shape.' }
+    }
+
+    case 'meeting_prep': {
+      requirePlan('tier2', 'Meeting prep')
+      const calToken = await getFreshToken(supabase, clientId, 'calendar')
+      if (!calToken) return { error: 'Google Calendar not connected. Go to Settings → Integrations → Google Calendar to connect.' }
+
+      let events: Record<string, unknown>[] = []
+      if (input.event_id) {
+        const evRes = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${input.event_id}`,
+          { headers: { Authorization: `Bearer ${calToken}` } }
+        )
+        const ev = await evRes.json()
+        if (ev.error) return { error: ev.error.message ?? JSON.stringify(ev.error) }
+        events = [ev]
+      } else {
+        const hoursAhead = (input.hours_ahead as number) ?? 48
+        const params = new URLSearchParams({
+          timeMin: new Date().toISOString(),
+          timeMax: new Date(Date.now() + hoursAhead * 3600000).toISOString(),
+          maxResults: '10',
+          singleEvents: 'true',
+          orderBy: 'startTime',
+        })
+        const evRes = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
+          { headers: { Authorization: `Bearer ${calToken}` } }
+        )
+        const evData = await evRes.json()
+        if (evData.error) return { error: evData.error.message ?? JSON.stringify(evData.error) }
+        events = evData.items ?? []
+      }
+      if (!events.length) return { count: 0, briefs: [], message: 'No upcoming meetings in that window.' }
+
+      const gmailToken = await getFreshToken(supabase, clientId, 'gmail')
+      const briefs: Record<string, unknown>[] = []
+
+      for (const ev of events.slice(0, 5)) {
+        const attendees = ((ev.attendees as Record<string, unknown>[] | undefined) ?? [])
+          .map(a => (a.email as string ?? '').toLowerCase())
+          .filter(e => e && !(e.includes('resource.calendar.google.com')))
+          .slice(0, 5)
+
+        const attendeeContext: Record<string, unknown>[] = []
+        for (const email of attendees) {
+          // Relationship memory
+          const { data: mem } = await supabase
+            .from('prymal_contact_memory')
+            .select('contact_name, company, context_summary, tags, last_interaction')
+            .eq('client_id', clientId)
+            .eq('contact_email', email)
+            .maybeSingle()
+
+          // Recent email history
+          let recentEmails: Record<string, unknown>[] = []
+          if (gmailToken) {
+            const gRes = await fetch(
+              `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(`from:${email} OR to:${email}`)}&maxResults=3`,
+              { headers: { Authorization: `Bearer ${gmailToken}` } }
+            )
+            const gData = await gRes.json()
+            recentEmails = await Promise.all(
+              (gData.messages ?? []).slice(0, 3).map(async (m: { id: string }) => {
+                const mRes = await fetch(
+                  `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=Date`,
+                  { headers: { Authorization: `Bearer ${gmailToken}` } }
+                )
+                const msg = await mRes.json()
+                const hs: Record<string, string> = {}
+                for (const h of msg.payload?.headers ?? []) hs[h.name] = h.value
+                return { subject: hs['Subject'] ?? '', date: hs['Date'] ?? '', snippet: (msg.snippet ?? '').slice(0, 120) }
+              })
+            )
+          }
+
+          attendeeContext.push({ email, memory: mem ?? null, recent_emails: recentEmails })
+        }
+
+        briefs.push({
+          event_id: ev.id,
+          title: ev.summary ?? '(no title)',
+          start: (ev.start as Record<string, string>)?.dateTime ?? (ev.start as Record<string, string>)?.date ?? '',
+          location: ev.location ?? '',
+          description: ((ev.description as string) ?? '').slice(0, 300),
+          attendees: attendeeContext,
+        })
+      }
+
+      return { count: briefs.length, briefs, message: 'Compose a concise prep brief per meeting: who they are, where things stand, and anything owed to them.' }
     }
 
     // ── Pro+ : GBP ──
@@ -1312,9 +1796,7 @@ async function handleTool(
 
     case 'get_emails': {
       requirePlan('tier1', 'Gmail')
-      console.log(`[DEBUG] get_emails: Attempting to fetch Gmail token for clientId=${clientId}`)
       const token = await getFreshToken(supabase, clientId, 'gmail')
-      console.log(`[DEBUG] get_emails: Token fetch result - token=${token ? 'present' : 'null'}`)
       if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
 
       const params = new URLSearchParams({
@@ -3428,10 +3910,12 @@ async function runGeminiLoop(
   message: string,
   supabase: ReturnType<typeof createClient>,
   clientId: string,
-  clientPlan: string
+  clientPlan: string,
+  channel: string = 'web'
 ): Promise<string> {
   const availableTools = filterToolsByPlan(TOOLS, clientPlan)
-  const functionDeclarations = availableTools.map(t => ({
+  const geminiSafeTools = channel === 'automation' ? availableTools.filter(t => t.name !== 'resolve_pending_action') : availableTools
+  const functionDeclarations = geminiSafeTools.map(t => ({
     name: t.name,
     description: t.description,
     parameters: t.input_schema,
@@ -3454,7 +3938,7 @@ async function runGeminiLoop(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          systemInstruction: { parts: [{ text: buildSystemPrompt(clientPlan, channel) }] },
           contents,
           tools: [{ functionDeclarations }],
           generationConfig: { maxOutputTokens: 4096 },
@@ -3485,7 +3969,7 @@ async function runGeminiLoop(
     const responses: GeminiPart[] = await Promise.all(
       calls.map(async c => {
         try {
-          const result = await handleTool(c.functionCall.name, c.functionCall.args, supabase, clientId, clientPlan)
+          const result = await handleTool(c.functionCall.name, c.functionCall.args as Record<string, unknown>, supabase, clientId, clientPlan, channel)
           return { functionResponse: { name: c.functionCall.name, response: { output: JSON.stringify(result) } } }
         } catch (err) {
           return { functionResponse: { name: c.functionCall.name, response: { error: (err as Error).message } } }
@@ -3545,7 +4029,8 @@ async function runHaikuLoop(
   message: string,
   supabase: ReturnType<typeof createClient>,
   clientId: string,
-  clientPlan: string
+  clientPlan: string,
+  channel: string = 'web'
 ): Promise<string> {
   const anthropic = new Anthropic({ apiKey })
   const validHistory = validateHistory(history)
@@ -3555,25 +4040,21 @@ async function runHaikuLoop(
   ]
 
   const availableTools = filterToolsByPlan(TOOLS, clientPlan)
-
-  console.log('[DEBUG] Haiku request:', {
-    messageCount: messages.length,
-    lastUserMessage: message.slice(0, 100),
-    historyCount: history.length,
-    clientPlan,
-    availableToolsCount: availableTools.length
-  })
+  // External apps via Composio (feature-flagged; [] when off)
+  const composioTools = await getComposioTools(clientId)
+  const allTools = [...availableTools, ...composioTools]
+  // Unattended runs must never self-approve queued actions (prompt-injection guard)
+  const loopTools = channel === 'automation' ? allTools.filter(t => t.name !== 'resolve_pending_action') : allTools
 
   while (true) {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      tools: availableTools,
+      system: buildSystemPrompt(clientPlan, channel),
+      tools: loopTools,
       messages,
     })
 
-    console.log('[DEBUG] Haiku response:', {
       stop_reason: response.stop_reason,
       content_blocks: response.content.length,
       content_types: response.content.map(c => c.type)
@@ -3584,7 +4065,6 @@ async function runHaikuLoop(
         .filter(b => b.type === 'text')
         .map(b => (b as Anthropic.TextBlock).text)
         .join('')
-      console.log('[DEBUG] Haiku end_turn response text:', text)
       return text
     }
 
@@ -3593,7 +4073,7 @@ async function runHaikuLoop(
       for (const block of response.content) {
         if (block.type === 'tool_use') {
           try {
-            const result = await handleTool(block.name, block.input as Record<string, unknown>, supabase, clientId, clientPlan)
+            const result = await handleTool(block.name, block.input as Record<string, unknown>, supabase, clientId, clientPlan, channel)
             toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) })
           } catch (err) {
             toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: `Error: ${(err as Error).message}`, is_error: true })
@@ -3613,29 +4093,53 @@ async function runHaikuLoop(
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
+  Object.assign(CORS, corsHeaders(req))
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: CORS })
   }
 
   try {
     console.log('[VERSION] prymal-chat deployed 2026-06-28 v2.5 with detailed token logging')
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-    const anonClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!)
-    const { data: { user }, error: authError } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''))
-    if (authError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
 
-    const { data: clientRow } = await supabase
-      .from('prymal_clients')
-      .select('id, anthropic_api_key, gemini_api_key, plan')
-      .eq('user_id', user.id)
-      .single()
+    const body = await req.json()
+    const { message, history = [], channel = 'web' } = body
+
+    // ── Auth: user JWT (web) OR internal shared secret (SMS/WhatsApp bridge) ──
+    let clientRow: { id: string; anthropic_api_key: string | null; gemini_api_key: string | null; plan: string } | null = null
+
+    const internalKey = req.headers.get('x-internal-key')
+    const INTERNAL_SECRET = Deno.env.get('INTERNAL_FUNCTION_SECRET') ?? ''
+    if (internalKey && INTERNAL_SECRET && internalKey === INTERNAL_SECRET && body.client_id) {
+      const { data } = await supabase
+        .from('prymal_clients')
+        .select('id, anthropic_api_key, gemini_api_key, plan')
+        .eq('id', body.client_id)
+        .single()
+      clientRow = data
+    } else {
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+
+      const anonClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!)
+      const { data: { user }, error: authError } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''))
+      if (authError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+
+      const { data } = await supabase
+        .from('prymal_clients')
+        .select('id, anthropic_api_key, gemini_api_key, plan')
+        .eq('user_id', user.id)
+        .single()
+      clientRow = data
+    }
 
     if (!clientRow) return new Response(JSON.stringify({ error: 'Client not found.' }), { status: 404 })
 
-    const { message, history = [] } = await req.json()
+    if (rateLimited(clientRow.id)) {
+      return new Response(JSON.stringify({ error: "Alfy's catching its breath — try again in a few minutes." }), {
+        status: 429, headers: { 'Content-Type': 'application/json', ...CORS },
+      })
+    }
 
     // Validate inputs
     let validatedMessage: string
@@ -3697,7 +4201,7 @@ Deno.serve(async (req) => {
     if (anthropicKey) {
       try {
         finalText = await runHaikuLoop(
-          anthropicKey, history, validatedMessage, supabase, clientRow.id, clientPlan
+          anthropicKey, history, validatedMessage, supabase, clientRow.id, clientPlan, channel
         )
       } catch (haikuErr) {
         // Anthropic unavailable or quota exceeded — fall back to Gemini
@@ -3709,12 +4213,12 @@ Deno.serve(async (req) => {
           )
         }
         finalText = await runGeminiLoop(
-          geminiKey, history, validatedMessage, supabase, clientRow.id, clientPlan
+          geminiKey, history, validatedMessage, supabase, clientRow.id, clientPlan, channel
         )
       }
     } else if (geminiKey) {
       finalText = await runGeminiLoop(
-        geminiKey, history, validatedMessage, supabase, clientRow.id, clientPlan
+        geminiKey, history, validatedMessage, supabase, clientRow.id, clientPlan, channel
       )
     } else {
       return new Response(
