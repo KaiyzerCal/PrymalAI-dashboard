@@ -214,7 +214,14 @@ export function AlfyApp() {
 
 				{tab === 'handled' && (
 					<section className="card">
-						<p className="label">Handled</p>
+						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
+							<p className="label">Handled</p>
+							{done.length > 0 && (
+								<p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--muted)' }}>
+									{done.length} handled · {done.filter(r => r.status === 'approved').length} with your yes
+								</p>
+							)}
+						</div>
 						{done.length === 0 && <p style={{ color: 'var(--secondary)' }}>Nothing here yet — approvals you give will show up as plain-language receipts.</p>}
 						<ul style={{ margin: '0.5rem 0 0', padding: 0, listStyle: 'none' }}>
 							{done.map(row => (
