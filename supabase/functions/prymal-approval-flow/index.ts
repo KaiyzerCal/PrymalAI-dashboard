@@ -51,6 +51,20 @@ async function getValidAccessToken(
   return tokens.access_token
 }
 
+// Try several stored platform names — the connect flow writes different rows
+// (google, drive, docs, calendar) depending on when the client connected.
+async function getTokenAny(
+  admin: ReturnType<typeof createClient>,
+  clientId: string,
+  platforms: string[]
+): Promise<string | null> {
+  for (const pf of platforms) {
+    const token = await getValidAccessToken(admin, clientId, pf)
+    if (token) return token
+  }
+  return null
+}
+
 // Build a RFC 2822 / base64url encoded Gmail message
 function buildGmailRaw(opts: { to: string; subject: string; body: string; from?: string; replyTo?: string }): string {
   const msgId = `<${Date.now()}.prymal@mail.gmail.com>`
@@ -260,6 +274,129 @@ Deno.serve(async (req: Request) => {
       executionResult = { noted: true, message: 'Report approved and saved.' }
     }
 
+    // Docs / Sheets / Drive / Meet — these queued for approval but had no
+    // executor, so approvals silently did nothing. Now they perform the work.
+    else if (['create_sheet','update_sheet','create_document','update_document','create_folder','move_file','rename_file','delete_file','share_file','schedule_meet'].includes(actionType)) {
+      const accessToken = await getTokenAny(admin, clientId, ['drive', 'docs', 'google', 'calendar', 'gmail'])
+      if (!accessToken) {
+        executionResult = { executed: false, error: 'Google not connected or token expired.' }
+      } else {
+        try {
+          const gauth = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+          if (actionType === 'create_sheet') {
+            const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+              method: 'POST', headers: gauth,
+              body: JSON.stringify({ properties: { title: (meta.title as string) ?? 'Untitled' } }),
+            })
+            const d = await res.json()
+            if (!res.ok) throw new Error(d.error?.message ?? JSON.stringify(d))
+            if (meta.parentFolderId) {
+              await fetch('https://www.googleapis.com/drive/v3/files/' + d.spreadsheetId + '?addParents=' + meta.parentFolderId, { method: 'PATCH', headers: gauth })
+            }
+            executionResult = { executed: true, spreadsheetId: d.spreadsheetId, url: d.spreadsheetUrl }
+          } else if (actionType === 'update_sheet') {
+            const range = encodeURIComponent((meta.range as string) ?? String(meta.sheetName ?? 'Sheet1'))
+            const isAppend = meta.mode === 'append'
+            const res = await fetch(
+              'https://sheets.googleapis.com/v4/spreadsheets/' + meta.spreadsheetId + '/values/' + range + (isAppend ? ':append' : '') + '?valueInputOption=USER_ENTERED',
+              { method: isAppend ? 'POST' : 'PUT', headers: gauth, body: JSON.stringify({ values: meta.values }) }
+            )
+            const d = await res.json()
+            if (!res.ok) throw new Error(d.error?.message ?? JSON.stringify(d))
+            executionResult = { executed: true, updated: d.updates?.updatedCells ?? d.updatedCells ?? 0 }
+          } else if (actionType === 'create_document') {
+            const res = await fetch('https://docs.googleapis.com/v1/documents', {
+              method: 'POST', headers: gauth,
+              body: JSON.stringify({ title: (meta.title as string) ?? 'Untitled' }),
+            })
+            const d = await res.json()
+            if (!res.ok) throw new Error(d.error?.message ?? JSON.stringify(d))
+            const content = (meta.content as string) ?? ''
+            if (content) {
+              await fetch('https://docs.googleapis.com/v1/documents/' + d.documentId + ':batchUpdate', {
+                method: 'POST', headers: gauth,
+                body: JSON.stringify({ requests: [{ insertText: { location: { index: 1 }, text: content } }] }),
+              })
+            }
+            if (meta.parentFolderId) {
+              await fetch('https://www.googleapis.com/drive/v3/files/' + d.documentId + '?addParents=' + meta.parentFolderId, { method: 'PATCH', headers: gauth })
+            }
+            executionResult = { executed: true, documentId: d.documentId, url: 'https://docs.google.com/document/d/' + d.documentId + '/edit' }
+          } else if (actionType === 'update_document') {
+            const docId = meta.documentId as string
+            const content = (meta.content as string) ?? finalText
+            const doc = await (await fetch('https://docs.googleapis.com/v1/documents/' + docId + '?fields=body.content', { headers: gauth })).json()
+            const parts = doc.body?.content ?? []
+            const endIndex = Math.max(1, (parts.length ? parts[parts.length - 1].endIndex ?? 2 : 2) - 1)
+            const requests = meta.mode === 'replace'
+              ? [
+                  ...(endIndex > 1 ? [{ deleteContentRange: { range: { startIndex: 1, endIndex } } }] : []),
+                  { insertText: { location: { index: 1 }, text: content } },
+                ]
+              : [{ insertText: { location: { index: endIndex }, text: '\n' + content } }]
+            const res = await fetch('https://docs.googleapis.com/v1/documents/' + docId + ':batchUpdate', {
+              method: 'POST', headers: gauth, body: JSON.stringify({ requests }),
+            })
+            const d = await res.json()
+            if (!res.ok) throw new Error(d.error?.message ?? JSON.stringify(d))
+            executionResult = { executed: true, documentId: docId }
+          } else if (actionType === 'create_folder') {
+            const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+              method: 'POST', headers: gauth,
+              body: JSON.stringify({
+                name: (meta.name as string) ?? (meta.title as string) ?? 'New folder',
+                mimeType: 'application/vnd.google-apps.folder',
+                ...(meta.parentFolderId ? { parents: [meta.parentFolderId] } : {}),
+              }),
+            })
+            const d = await res.json()
+            if (!res.ok) throw new Error(d.error?.message ?? JSON.stringify(d))
+            executionResult = { executed: true, folderId: d.id }
+          } else if (actionType === 'delete_file') {
+            const res = await fetch('https://www.googleapis.com/drive/v3/files/' + meta.fileId, { method: 'DELETE', headers: gauth })
+            if (!res.ok && res.status !== 204) throw new Error('Delete failed: ' + res.status)
+            executionResult = { executed: true, deleted: meta.fileId }
+          } else if (actionType === 'share_file') {
+            const res = await fetch('https://www.googleapis.com/drive/v3/files/' + meta.fileId + '/permissions', {
+              method: 'POST', headers: gauth,
+              body: JSON.stringify({ type: 'user', role: (meta.role as string) ?? 'reader', emailAddress: meta.email }),
+            })
+            const d = await res.json()
+            if (!res.ok) throw new Error(d.error?.message ?? JSON.stringify(d))
+            executionResult = { executed: true, shared: meta.email }
+          } else if (actionType === 'move_file' || actionType === 'rename_file') {
+            const qs = actionType === 'move_file'
+              ? '?addParents=' + meta.newParentId + (meta.oldParentId ? '&removeParents=' + meta.oldParentId : '')
+              : ''
+            const res = await fetch('https://www.googleapis.com/drive/v3/files/' + meta.fileId + qs, {
+              method: 'PATCH', headers: gauth,
+              body: JSON.stringify(actionType === 'rename_file' ? { name: meta.newName } : {}),
+            })
+            const d = await res.json()
+            if (!res.ok) throw new Error(d.error?.message ?? JSON.stringify(d))
+            executionResult = { executed: true, fileId: meta.fileId }
+          } else if (actionType === 'schedule_meet') {
+            const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', {
+              method: 'POST', headers: gauth,
+              body: JSON.stringify({
+                summary: (meta.title as string) ?? 'Meeting',
+                description: (meta.description as string) ?? '',
+                start: { dateTime: meta.startTime },
+                end: { dateTime: meta.endTime },
+                attendees: ((meta.attendees as string[]) ?? []).map((email: string) => ({ email })),
+                conferenceData: { createRequest: { requestId: crypto.randomUUID(), conferenceSolutionKey: { type: 'hangoutsMeet' } } },
+              }),
+            })
+            const d = await res.json()
+            if (!res.ok) throw new Error(d.error?.message ?? JSON.stringify(d))
+            executionResult = { executed: true, eventId: d.id, meetLink: d.hangoutLink ?? d.conferenceData?.entryPoints?.[0]?.uri }
+          }
+        } catch (err) {
+          executionResult = { executed: false, error: String(err) }
+        }
+      }
+    }
+
     // Social post
     else if (actionType === 'social_post' || actionType === 'post_content') {
       const platform = (meta.platform as string) ?? 'unknown'
@@ -271,6 +408,12 @@ Deno.serve(async (req: Request) => {
         scheduled_for: (meta.scheduled_for as string) ?? null,
       }).select()
       executionResult = { queued: true, platform }
+    }
+
+    // Honest fallback — an action type with no executor must say so, loudly,
+    // instead of being marked approved as if the work happened.
+    else {
+      executionResult = { executed: false, error: "No executor for '" + actionType + "' yet — nothing was performed." }
     }
 
     // ── Mark approved ─────────────────────────────────────────────────────────
