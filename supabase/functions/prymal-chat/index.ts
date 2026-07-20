@@ -1330,7 +1330,36 @@ const TOOLS: Anthropic.Tool[] = [
 
 // ── Tool handlers ─────────────────────────────────────────────────────────────
 
+// Logging wrapper: every tool call lands in prymal_agent_log for replay/debugging.
 async function handleTool(
+  toolName: string,
+  input: Record<string, unknown>,
+  supabase: ReturnType<typeof createClient>,
+  clientId: string,
+  clientPlan: string,
+  channel: string = 'web'
+): Promise<unknown> {
+  const started = Date.now()
+  let ok = true
+  let result: unknown
+  try {
+    result = await handleToolInner(toolName, input, supabase, clientId, clientPlan)
+  } catch (err) {
+    ok = false
+    result = { error: String(err) }
+    throw err
+  } finally {
+    // fire-and-forget; logging must never break the loop
+    supabase.from('prymal_agent_log').insert({
+      client_id: clientId, channel, tool_name: toolName,
+      input, result: ok ? result : { error: String(result) },
+      ok, duration_ms: Date.now() - started,
+    }).then(() => {}, () => {})
+  }
+  return result
+}
+
+async function handleToolInner(
   toolName: string,
   input: Record<string, unknown>,
   supabase: ReturnType<typeof createClient>,
@@ -3903,7 +3932,7 @@ async function runGeminiLoop(
     const responses: GeminiPart[] = await Promise.all(
       calls.map(async c => {
         try {
-          const result = await handleTool(c.functionCall.name, c.functionCall.args, supabase, clientId, clientPlan)
+          const result = await handleTool(c.functionCall.name, c.functionCall.args as Record<string, unknown>, supabase, clientId, clientPlan, channel)
           return { functionResponse: { name: c.functionCall.name, response: { output: JSON.stringify(result) } } }
         } catch (err) {
           return { functionResponse: { name: c.functionCall.name, response: { error: (err as Error).message } } }
@@ -4007,7 +4036,7 @@ async function runHaikuLoop(
       for (const block of response.content) {
         if (block.type === 'tool_use') {
           try {
-            const result = await handleTool(block.name, block.input as Record<string, unknown>, supabase, clientId, clientPlan)
+            const result = await handleTool(block.name, block.input as Record<string, unknown>, supabase, clientId, clientPlan, channel)
             toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) })
           } catch (err) {
             toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: `Error: ${(err as Error).message}`, is_error: true })
