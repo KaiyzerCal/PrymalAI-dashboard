@@ -1470,8 +1470,8 @@ async function handleToolInner(
     }
 
     case 'invite_friend': {
-      const phone = String(input.phone ?? '').replace(/[^+d]/g, '')
-      if (!/^+?d{10,15}$/.test(phone)) return { error: 'That number doesn't look right — need it like +15551234567.' }
+      const phone = String(input.phone ?? '').replace(/[^\d+]/g, '')
+      if (!/^\+?\d{10,15}$/.test(phone)) return { error: "That number doesn't look right — need it like +15551234567." }
       const friend = String(input.name ?? 'your friend')
       const draft = `Hi ${friend} — a friend of yours uses Alfy, an assistant you just text. It handles the stuff you keep meaning to do, and nothing sends without your OK. Save this number and say hi. — A`
       const { data, error } = await supabase
@@ -4053,11 +4053,6 @@ async function runHaikuLoop(
       system: buildSystemPrompt(clientPlan, channel),
       tools: loopTools,
       messages,
-    })
-
-      stop_reason: response.stop_reason,
-      content_blocks: response.content.length,
-      content_types: response.content.map(c => c.type)
     })
 
     if (response.stop_reason === 'end_turn') {
