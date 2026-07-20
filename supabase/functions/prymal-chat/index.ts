@@ -81,6 +81,13 @@ PROACTIVE HABITS:
 - EARNED AUTONOMY: When you notice the client has approved the same kind of action several times without edits (check get_agent_activity), offer once — plainly — to handle that kind of thing without asking, e.g. "That's five calendar replies you've approved without changes — want me to just handle those from now on?" If they say yes, save it as a standing instruction and remind them they can take it back any time. Never offer twice for the same thing after a no.
 - STANDING INSTRUCTIONS: When the client states an ongoing goal ("never let me miss a birthday", "always flag unpaid invoices", "check in on cold leads weekly"), save it with create_standing_instruction — Alfy re-checks these automatically on schedule. When you learn a birthday, save it on the contact with remember_contact.
 
+FIRST CONTACT — the first ten minutes must produce a catch:
+- If the conversation history is empty or this is clearly a new client, don't introduce yourself at length. Greet in one line, then immediately go find ONE true, useful thing they'd forgotten or missed — an unanswered thread (find_followups_needed), an unconfirmed appointment, an upcoming birthday, a bill date. Deliver it plainly and offer to handle it. That first catch is the whole first impression.
+- If no accounts are connected yet, ask for the one thing you need to produce the first catch, not a setup checklist.
+
+INVITES:
+- When the client asks to invite someone ("invite Sam", "tell my sister about you"), use invite_friend. The invite text goes out only after their yes, like everything else. Never suggest inviting people unprompted.
+
 REAL-WORLD ERRANDS — bookings, reservations, appointments, bills, travel:
 - You handle these by doing the legwork, then queueing the decisive step for approval. Never claim a booking is confirmed until the counterparty confirms.
 - RESERVATIONS & APPOINTMENTS (restaurants, doctors, salons, services): find the details from email history, contacts, or connected search tools. Draft the request email via queue_action (action_type 'book_appointment' or 'book_reservation', metadata.to = the venue's email). Offer 2-3 time slots that fit the client's calendar, and hold the slot on their calendar. When the venue replies, confirm the event and tell the client.
@@ -257,6 +264,18 @@ const TOOLS: Anthropic.Tool[] = [
         edited_content: { type: 'string', description: 'If the client asked for a change, the revised content to send instead of the draft.' }
       },
       required: ['decision']
+    }
+  },
+  {
+    name: 'invite_friend',
+    description: 'Invite someone to Alfy by text, when the client asks to. Queues the invite text for approval first — it only sends after their yes.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: "The friend's first name" },
+        phone: { type: 'string', description: 'Their mobile number, E.164 like +15551234567' }
+      },
+      required: ['name', 'phone']
     }
   },
   {
@@ -1448,6 +1467,23 @@ async function handleToolInner(
       const data = await res.json()
       if (!res.ok) return { error: data.error ?? 'Approval execution failed.' }
       return data
+    }
+
+    case 'invite_friend': {
+      const phone = String(input.phone ?? '').replace(/[^+d]/g, '')
+      if (!/^+?d{10,15}$/.test(phone)) return { error: 'That number doesn't look right — need it like +15551234567.' }
+      const friend = String(input.name ?? 'your friend')
+      const draft = `Hi ${friend} — a friend of yours uses Alfy, an assistant you just text. It handles the stuff you keep meaning to do, and nothing sends without your OK. Save this number and say hi. — A`
+      const { data, error } = await supabase
+        .from('prymal_approval_queue')
+        .insert({
+          client_id: clientId, agent: 'google', action_type: 'invite_friend',
+          summary: `Invite ${friend} to Alfy`, draft_content: draft,
+          metadata: { to_phone: phone, name: friend }, status: 'pending',
+        })
+        .select().single()
+      if (error) throw new Error(error.message)
+      return { queued: true, approval_id: data.id, note: 'Invite queued — sends after the client approves.' }
     }
 
     case 'get_agent_activity': {

@@ -69,6 +69,7 @@ export function AlfyApp() {
 	const [aboutSaved, setAboutSaved] = useState(false)
 	const [busy, setBusy] = useState<string | null>(null)
 	const [settingsOpen, setSettingsOpen] = useState(false)
+	const [shared, setShared] = useState(false)
 	const [editing, setEditing] = useState<string | null>(null)
 	const [editText, setEditText] = useState('')
 
@@ -242,6 +243,27 @@ export function AlfyApp() {
 								</li>
 							))}
 						</ul>
+						{done.filter(r => r.status === 'approved').length > 0 && (
+							<div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+								<button
+									className="btn btn-outline"
+									onClick={() => {
+										const n = done.filter(r => r.status === 'approved').length
+										navigator.clipboard.writeText(
+											`Alfy handled ${n} thing${n === 1 ? '' : 's'} for me this week — nothing sent without my yes. askalfy.com`
+										)
+										setShared(true)
+										setTimeout(() => setShared(false), 2000)
+									}}
+								>
+									Share your week
+								</button>
+								{shared && <span style={{ color: 'var(--fern)', fontSize: '0.8125rem' }}>Copied — paste it anywhere.</span>}
+							</div>
+						)}
+						<p style={{ marginTop: '1rem', fontSize: '0.8125rem', color: 'var(--muted)' }}>
+							Your week rolls up into a Sunday text. Quiet weeks stay quiet.
+						</p>
 					</section>
 				)}
 

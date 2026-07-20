@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { sendSms } from '../_shared/twilio.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -173,6 +174,22 @@ Deno.serve(async (req: Request) => {
             executionResult = { posted: false, error: await replyRes.text() }
           }
         }
+      }
+    }
+
+    // Friend invite — sends the approved text via Twilio and records it
+    else if (actionType === 'invite_friend') {
+      const toPhone = (meta.to_phone ?? '') as string
+      if (toPhone) {
+        const ok = await sendSms(toPhone, finalText)
+        if (ok) {
+          await admin.from('prymal_invites').insert({
+            client_id: clientId, phone: toPhone, name: (meta.name as string) ?? null, status: 'sent',
+          })
+        }
+        executionResult = { sent: ok, to: toPhone }
+      } else {
+        executionResult = { sent: false, error: 'Missing to_phone in metadata.' }
       }
     }
 

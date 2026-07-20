@@ -17,3 +17,6 @@ verify_jwt = false  # same dual-path validation as prymal-chat
 
 [functions.prymal-automation-runner]
 verify_jwt = false  # guarded by x-runner-key internal secret
+
+[functions.prymal-digest]
+verify_jwt = false  # guarded by x-runner-key internal secret
