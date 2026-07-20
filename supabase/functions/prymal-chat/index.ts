@@ -1,4 +1,6 @@
 import Anthropic from 'npm:@anthropic-ai/sdk'
+import { corsHeaders } from '../_shared/cors.ts'
+import { getComposioTools, isComposioTool, executeComposioTool } from '../_shared/composio.ts'
 import { createClient } from 'npm:@supabase/supabase-js'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -9,7 +11,7 @@ const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
 const PLATFORM_ANTHROPIC_KEY = Deno.env.get('Anthropic_api_key') ?? ''
 const PLATFORM_GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? ''
 
-const CORS = {
+const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -33,12 +35,6 @@ function filterToolsByPlan(tools: Anthropic.Tool[], clientPlan: string): Anthrop
     const tierTag = getTierFromDescription(tool.description)
     const keep = !tierTag || tierTag === 'all plans' || planAtLeast(clientPlan, tierTag)
     return keep
-  })
-  console.log('[DEBUG] Tool filtering:', {
-    clientPlan,
-    totalTools: tools.length,
-    filteredTools: filtered.length,
-    planRank: PLAN_RANK[clientPlan] ?? 'unknown'
   })
   return filtered
 }
@@ -70,6 +66,13 @@ PROACTIVE HABITS:
 - MEETING PREP: Before meetings, or on request, use meeting_prep and deliver a short per-meeting brief: who's attending, what you know about them, latest email context, anything owed.
 - After any meaningful interaction with a person's emails or events, quietly update relationship memory. Don't announce it every time.
 - STANDING INSTRUCTIONS: When the client states an ongoing goal ("never let me miss a birthday", "always flag unpaid invoices", "check in on cold leads weekly"), save it with create_standing_instruction — Alfy re-checks these automatically on schedule. When you learn a birthday, save it on the contact with remember_contact.
+
+REAL-WORLD ERRANDS — bookings, reservations, appointments, bills, travel:
+- You handle these by doing the legwork, then queueing the decisive step for approval. Never claim a booking is confirmed until the counterparty confirms.
+- RESERVATIONS & APPOINTMENTS (restaurants, doctors, salons, services): find the details from email history, contacts, or connected search tools. Draft the request email via queue_action (action_type 'book_appointment' or 'book_reservation', metadata.to = the venue's email). Offer 2-3 time slots that fit the client's calendar, and hold the slot on their calendar. When the venue replies, confirm the event and tell the client.
+- BILLS: track due dates as standing instructions and remind before they're due. If the biller accepts email contact, draft the message via queue_action ('pay_bill'). Never move money yourself — prepare everything so the client's yes is the only remaining step, and say plainly what you could and couldn't do.
+- FLIGHTS & TRAVEL: when search tools are connected, search real options and present the 2-3 best with concrete prices and times. Book by queueing the decisive step for approval ('book_flight', all details in metadata). Without search tools, say so honestly and offer the draft-a-request route instead.
+- Always sanity-check dates and times against the client's calendar before proposing anything.
 
 TONE — sound like a person, not a chatbot:
 - No signposting ("Here's what I found:", "Great question!"). Just say the thing.
@@ -129,7 +132,7 @@ const SYSTEM_CAPABILITIES = `CAPABILITIES BY TIER:
   ✓ Photo intelligence: Detect duplicate photos, smart organization
   ✓ All Tier 3 capabilities
 
-AI ENGINE: Uses the client's Anthropic (Claude Haiku) key as primary. Falls back to Gemini if Anthropic is unavailable.
+AI ENGINE: Runs on platform-managed keys (Claude Haiku primary, Gemini fallback). Clients never need their own API key.
 
 RULES — never break these:
 1. Never post, send, or create anything externally without going through queue_action first. The client approves everything in the dashboard before it goes out.
@@ -155,7 +158,6 @@ async function getFreshToken(
   platform: string
 ): Promise<string | null> {
   try {
-    console.log(`[DEBUG] getFreshToken START: clientId=${clientId}, platform=${platform}`)
 
     const { data, error } = await supabase
       .from('prymal_oauth_tokens')
@@ -164,7 +166,6 @@ async function getFreshToken(
       .eq('platform', platform)
       .single()
 
-    console.log(`[DEBUG] getFreshToken QUERY: data exists=${!!data}, error=${error ? error.message : 'none'}`)
 
     if (error) {
       console.warn(`[WARN] getFreshToken query error: ${error.message}`)
@@ -176,11 +177,9 @@ async function getFreshToken(
       return null
     }
 
-    console.log(`[DEBUG] getFreshToken found token, expires_at=${data.expires_at}`)
 
     const expiresAt = data.expires_at ? new Date(data.expires_at).getTime() : 0
     if (Date.now() < expiresAt - 60000) {
-      console.log(`[DEBUG] getFreshToken: Token still valid`)
       return data.access_token
     }
 
@@ -189,7 +188,6 @@ async function getFreshToken(
       return null
     }
 
-    console.log(`[DEBUG] getFreshToken: Token expired, refreshing...`)
     const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -201,7 +199,6 @@ async function getFreshToken(
       }),
     })
     const tokens = await res.json()
-    console.log(`[DEBUG] getFreshToken: Refresh response - ${tokens.access_token ? 'SUCCESS' : 'FAILED'}`)
     if (!tokens.access_token) return null
 
     await supabase.from('prymal_oauth_tokens').update({
@@ -236,6 +233,19 @@ const TOOLS: Anthropic.Tool[] = [
     }
   },
   {
+    name: 'resolve_pending_action',
+    description: 'Approve (execute) or reject a pending action from the approval queue. Use when the client says YES/approve or NO/skip to a queued action. Defaults to the most recent pending action if no id given.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        decision: { type: 'string', description: "'approve' or 'reject'" },
+        approval_id: { type: 'string', description: 'Specific approval row id. Omit to act on the most recent pending action.' },
+        edited_content: { type: 'string', description: 'If the client asked for a change, the revised content to send instead of the draft.' }
+      },
+      required: ['decision']
+    }
+  },
+  {
     name: 'get_agent_activity',
     description: 'Get history of approved or rejected actions.',
     input_schema: {
@@ -249,7 +259,7 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        action_type: { type: 'string', description: 'e.g. respond_to_review, send_email, create_event, drive_report' },
+        action_type: { type: 'string', description: 'e.g. respond_to_review, send_email, create_event, drive_report, book_reservation, book_appointment, book_flight, pay_bill' },
         summary: { type: 'string', description: 'Short title for the approval card' },
         draft_content: { type: 'string', description: 'Full content the client will review' },
         metadata: { type: 'object', description: 'Extra context. For send_email: always include "to" (recipient email address) and "subject". For review responses: review_id. For events: start, end, title, attendees.' },
@@ -1322,6 +1332,12 @@ async function handleTool(
     }
   }
 
+  // External app tools (Composio) route outside the switch
+  if (isComposioTool(toolName)) {
+    try { return await executeComposioTool(clientId, toolName, input) }
+    catch (err) { return { error: 'Connected app call failed: ' + String(err) } }
+  }
+
   switch (toolName) {
 
     // ── Shared ──
@@ -1356,6 +1372,39 @@ async function handleTool(
       const { data, error } = await query
       if (error) throw new Error(error.message)
       return { count: data?.length ?? 0, items: data ?? [] }
+    }
+
+    case 'resolve_pending_action': {
+      let approvalId = input.approval_id as string | undefined
+      if (!approvalId) {
+        const { data: latest } = await supabase
+          .from('prymal_approval_queue')
+          .select('id')
+          .eq('client_id', clientId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (!latest) return { error: 'No pending actions to resolve.' }
+        approvalId = latest.id
+      }
+      const decision = String(input.decision ?? '').toLowerCase()
+      const reply_text = decision === 'reject' || decision === 'no' || decision === 'skip'
+        ? 'REJECT'
+        : input.edited_content
+          ? `EDIT ${input.edited_content}`
+          : 'APPROVE'
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/prymal-approval-flow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-key': Deno.env.get('INTERNAL_FUNCTION_SECRET') ?? '',
+        },
+        body: JSON.stringify({ client_id: clientId, approval_id: approvalId, reply_text }),
+      })
+      const data = await res.json()
+      if (!res.ok) return { error: data.error ?? 'Approval execution failed.' }
+      return data
     }
 
     case 'get_agent_activity': {
@@ -1668,9 +1717,7 @@ async function handleTool(
 
     case 'get_emails': {
       requirePlan('tier1', 'Gmail')
-      console.log(`[DEBUG] get_emails: Attempting to fetch Gmail token for clientId=${clientId}`)
       const token = await getFreshToken(supabase, clientId, 'gmail')
-      console.log(`[DEBUG] get_emails: Token fetch result - token=${token ? 'present' : 'null'}`)
       if (!token) return { error: 'Gmail not connected. Go to Settings → Integrations → Gmail to connect.' }
 
       const params = new URLSearchParams({
@@ -3913,25 +3960,19 @@ async function runHaikuLoop(
   ]
 
   const availableTools = filterToolsByPlan(TOOLS, clientPlan)
-
-  console.log('[DEBUG] Haiku request:', {
-    messageCount: messages.length,
-    lastUserMessage: message.slice(0, 100),
-    historyCount: history.length,
-    clientPlan,
-    availableToolsCount: availableTools.length
-  })
+  // External apps via Composio (feature-flagged; [] when off)
+  const composioTools = await getComposioTools(clientId)
+  const allTools = [...availableTools, ...composioTools]
 
   while (true) {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
       system: buildSystemPrompt(clientPlan, channel),
-      tools: availableTools,
+      tools: allTools,
       messages,
     })
 
-    console.log('[DEBUG] Haiku response:', {
       stop_reason: response.stop_reason,
       content_blocks: response.content.length,
       content_types: response.content.map(c => c.type)
@@ -3942,7 +3983,6 @@ async function runHaikuLoop(
         .filter(b => b.type === 'text')
         .map(b => (b as Anthropic.TextBlock).text)
         .join('')
-      console.log('[DEBUG] Haiku end_turn response text:', text)
       return text
     }
 
@@ -3971,6 +4011,7 @@ async function runHaikuLoop(
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
+  Object.assign(CORS, corsHeaders(req))
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: CORS })
   }

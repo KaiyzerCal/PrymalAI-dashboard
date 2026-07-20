@@ -17,6 +17,7 @@ import { AdminPage } from '@/pages/AdminPage'
 import { AdminClientPage } from '@/pages/AdminClientPage'
 import { LandingPage } from '@/pages/LandingPage'
 import { UpgradePage } from '@/pages/UpgradePage'
+import { AlfyApp } from '@/alfy/AlfyApp'
 import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage'
 import { TermsOfServicePage } from '@/pages/TermsOfServicePage'
 import { SecurityPolicyPage } from '@/pages/SecurityPolicyPage'
@@ -100,6 +101,12 @@ export default function App() {
         <Route path="/upgrade" element={
           <AuthGuardSession>
             <UpgradePage />
+          </AuthGuardSession>
+        } />
+        <Route path="/alfy" element={<Navigate to="/alfy/today" replace />} />
+        <Route path="/alfy/:tab" element={
+          <AuthGuardSession>
+            <AlfyApp />
           </AuthGuardSession>
         } />
         <Route path="/dashboard"

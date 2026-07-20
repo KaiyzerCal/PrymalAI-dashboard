@@ -8,6 +8,7 @@ const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID') ?? ''
 const TWILIO_AUTH_TOKEN = Deno.env.get('TWILIO_AUTH_TOKEN') ?? ''
 const TWILIO_PHONE_NUMBER = Deno.env.get('TWILIO_PHONE_NUMBER') ?? ''
 const INTERNAL_FUNCTION_SECRET = Deno.env.get('INTERNAL_FUNCTION_SECRET') ?? ''
+const APP_URL = Deno.env.get('APP_URL') ?? 'askalfy.com'
 
 const HISTORY_LIMIT = 12
 
@@ -124,7 +125,7 @@ Deno.serve(async (req) => {
     .maybeSingle()
 
   if (!client || !client.phone_verified) {
-    return twiml("This number isn't linked to a Prymal AI account. Verify your phone in Settings → Integrations → Text Alfy at app.prymalai.com")
+    return twiml(`This number isn't linked to an Alfy account yet. Verify your phone in Settings at ${APP_URL}`)
   }
 
   // Answer the webhook instantly; think + reply in the background
