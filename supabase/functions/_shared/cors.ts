@@ -12,10 +12,19 @@ const DEFAULT_ALLOWED = [
 const extra = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map(s => s.trim()).filter(Boolean)
 const ALLOWED = new Set([...DEFAULT_ALLOWED, ...extra])
 
+// These endpoints authenticate every request with a Supabase Bearer JWT, so the
+// origin allowlist is defense-in-depth, not the primary gate. To avoid blocking
+// legitimate app/preview hosts, we reflect the caller's origin by DEFAULT and
+// only enforce the strict allowlist when ALLOWED_ORIGINS is explicitly set.
+const STRICT = extra.length > 0
+
 export function corsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('Origin') ?? ''
+  const allowOrigin = STRICT
+    ? (ALLOWED.has(origin) ? origin : DEFAULT_ALLOWED[0])
+    : (origin || '*')
   return {
-    'Access-Control-Allow-Origin': ALLOWED.has(origin) ? origin : DEFAULT_ALLOWED[0],
+    'Access-Control-Allow-Origin': allowOrigin,
     'Vary': 'Origin',
     'Access-Control-Allow-Headers': 'authorization, content-type, x-internal-key',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',

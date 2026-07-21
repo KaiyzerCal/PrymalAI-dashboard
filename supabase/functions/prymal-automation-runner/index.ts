@@ -83,3 +83,5 @@ Deno.serve(async (req) => {
     headers: { 'Content-Type': 'application/json' },
   })
 })
+
+// deploy trigger: cf7227f

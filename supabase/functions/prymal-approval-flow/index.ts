@@ -329,7 +329,7 @@ Deno.serve(async (req: Request) => {
 
     // Docs / Sheets / Drive / Meet — these queued for approval but had no
     // executor, so approvals silently did nothing. Now they perform the work.
-    else if (['create_sheet','update_sheet','create_document','update_document','create_folder','move_file','rename_file','delete_file','share_file','schedule_meet'].includes(actionType)) {
+    else if (['create_sheet','update_sheet','create_document','update_document','create_folder','rename_file','schedule_meet'].includes(actionType)) {
       const accessToken = await getTokenAny(admin, clientId, ['drive', 'docs', 'google', 'calendar', 'gmail'])
       if (!accessToken) {
         executionResult = { executed: false, error: 'Google not connected or token expired.' }
